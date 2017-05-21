@@ -1,2 +1,1 @@
-# tesis
-Tesis 
+# Repository for my bachelor thesis
