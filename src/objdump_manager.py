@@ -2,7 +2,7 @@ import re
 import pprint
 
 from regexes import TITLE_REGEX, SECTION_DISSASEMBLY_REGEX, SUBSECTION_REGEX, LINE_REGEX
-from constants import SUBSECTION_NAME, SECTION_NAME, CONTENT, SECTION, SUBSECTION
+from constants import SUBSECTION_NAME, SECTION_NAME, CONTENT, SECTION, SUBSECTION, TITLE, LINE
 
 
 class ObjdumpManager(object):
@@ -36,24 +36,24 @@ class ObjdumpManager(object):
                     match_section_dissasembly_rx = re.match(SECTION_DISSASEMBLY_REGEX,line) 
                     match_title_rx = re.match(TITLE_REGEX,line) 
                     if match_line_rx:
-                        if debug: content.append("{}--->{}".format(line.strip(), 'LINE')) 
+                        if debug: content.append("{}--->{}".format(line.strip(), LINE)) 
                         line_info = match_line_rx.groupdict()
                         dict_content[CONTENT][current_section][current_subsection].append(line_info)
                     
                     elif match_subsection_rx:
-                        if debug: content.append("{}--->{}".format(line.strip(), SUBSECTION)) #FOR DEBUG
+                        if debug: content.append("{}--->{}".format(line.strip(), SUBSECTION)) 
                         subsection_name = match_subsection_rx.groupdict()[SUBSECTION_NAME]
                         dict_content[CONTENT][current_section].update({subsection_name:[]})
                         current_subsection = subsection_name
                     
                     elif match_section_dissasembly_rx:
-                        if debug: content.append("{}--->{}".format(line.strip(), SECTION))#FOR DEBUG
+                        if debug: content.append("{}--->{}".format(line.strip(), SECTION))
                         section_name = match_section_dissasembly_rx.groupdict()[SECTION_NAME]
                         dict_content[CONTENT].update({section_name:{}})
                         current_section = section_name
 
                     elif match_title_rx:
-                        if debug: content.append("{}--->{}".format(line.strip(), 'TITLE'))    #FOR DEBUG
+                        if debug: content.append("{}--->{}".format(line.strip(), TITLE))    
                         dict_content = match_title_rx.groupdict()
                         dict_content.update({CONTENT:{}})
                     else:

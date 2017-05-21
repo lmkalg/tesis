@@ -8,8 +8,12 @@ ASSEMBLY_CODE = 'assembly_code'
 FILE_FORMAT = 'file_format'
 TITLE = "title"
 
-
-## Content Dict
+# Debugging
 SUBSECTION = "subsection"
 SECTION = "section"
+TITLE = "title" 
+LINE = "line"
+
+
+## Content Dict
 CONTENT = "content" 
