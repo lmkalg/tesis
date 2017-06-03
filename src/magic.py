@@ -14,19 +14,22 @@ if __name__ == '__main__':
 
     disas_code = DisassembledCode(args.binary_filepath, args.debug)
 
-
-    #Get Stack frame lines
-    lines =  disas_code.get_stack_frame(CODE_SECTION,MAIN_SUBSEC)
-    address = lines[1].get_address()
+    # Get Stack frame lines
+    lines = disas_code.get_stack_frame(CODE_SECTION,MAIN_SUBSEC)
+    stack_frame_end_address = lines[0][-1].get_address()
+    print "Stack frame is created at: {}".format(stack_frame_end_address)
 
     #Get Amount of saved place in for stack vars
-    amount =  disas_code.get_amount_of_place_reserved_for_stack_vars(CODE_SECTION,MAIN_SUBSEC)
-    print "Amount of saved place for stack vars in main function: {}".format(amount)
-    
+    amount_of_reserved =  disas_code.get_amount_of_place_reserved_for_stack_vars(CODE_SECTION,MAIN_SUBSEC)
+    print "Amount of saved place for stack vars in main function: {}".format(amount_of_reserved)
+
+    #Get amount of argv params
+    amount_of_params = disas_code.get_amount_of_argv_args(amount_of_reserved, CODE_SECTION, MAIN_SUBSEC)
+    print "Amount of params: {}".format(amount_of_params)
 
     #Get the value of RSP at the time of making the stack frame
     gdb_h = GDBHelper()
-    value   = gdb_h.get_register_value_on_address("rsp",address , args.binary_filepath, 'asdd')
+    value   = gdb_h.get_register_value_on_address("rsp", stack_frame_end_address, args.binary_filepath, 'asdd')
     print "Value of rsp/rbp inmediately after creating stack frame: {}".format(value)
 
 

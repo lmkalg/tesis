@@ -42,6 +42,7 @@ SHELLCODE_27 = '\x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48\xf7\xdb\x53
 # Lines models
 STACK_FRAME_LINES_MODEL = ['push rbp','mov rbp, rsp']
 RESERVED_AMOUNT_STACK_VARS_MODEL = ['push rbp','mov rbp, rsp', 'sub']
+GET_PARAMS_ARGV_MODEL = ['mov rax, [rbp-{}]', 'add rax']
 # STACK_FRAME_LINES = ['push rbp']
 
 
