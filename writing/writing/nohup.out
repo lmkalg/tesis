@@ -1,0 +1,10 @@
+
+(evince:1942): EvinceView-CRITICAL **: ev_page_cache_get_annot_mapping: assertion 'page >= 0 && page < cache->n_pages' failed
+
+(evince:1942): EvinceView-CRITICAL **: ev_page_cache_get_annot_mapping: assertion 'page >= 0 && page < cache->n_pages' failed
+
+(evince:1942): EvinceView-CRITICAL **: ev_page_cache_get_annot_mapping: assertion 'page >= 0 && page < cache->n_pages' failed
+
+(evince:1942): EvinceView-CRITICAL **: ev_page_cache_get_annot_mapping: assertion 'page >= 0 && page < cache->n_pages' failed
+
+(evince:1942): EvinceView-CRITICAL **: ev_page_cache_get_annot_mapping: assertion 'page >= 0 && page < cache->n_pages' failed

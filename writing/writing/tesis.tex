@@ -1,0 +1,143 @@
+\documentclass[11pt,a4paper,twoside]{tesis}
+% SI NO PENSAS IMPRIMIRLO EN FORMATO LIBRO PODES USAR
+%\documentclass[11pt,a4paper]{tesis}
+
+\usepackage{graphicx}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage[left=3cm,right=3cm,bottom=3.5cm,top=3.5cm]{geometry}
+
+\begin{document}
+
+%%%% CARATULA
+
+\def\autor{Pablo Agustín Artuso \\ LU: 282/11 \\ artusopablo@gmail.com}
+\def\tituloTesis{Analyzing Windows Telemetry component}
+\def\runtitulo{Analyzing Windows Telemetry component}
+\def\runtitle{}
+\def\director{Rodolfo Baader $<$rbaader@dc.uba.ar$>$}
+\def\codirector{Aleksandar Milenkoski $<$amilenkoski@ernw.de$>$}
+\def\lugar{Buenos Aires, 2018}
+\input{caratula}
+
+\section*{Abstract (english version)}
+\section*{Abstract (spanish version)}
+\section*{Greetings}
+\section*{Motivation}
+
+\section*{Table of content}
+
+\section*{Introduction}
+Explain that this study was carried out in a particular version of windows (1607) 64 bits Enterprise, which lacked of different things (for instance: documentation for different events)
+\subsection*{Basic concepts}
+\subsubsection*{Reverse Engineering}
+Key concepts about what RE means, from a general perspective, how it should tackled which tools are usually there.  64 bits, calling convention .. 
+\subsubsection*{Debugging}
+Explaniation of the concept of debugging, what is the different with doing static RE. Some words specifically for KERNEL debugging. 
+\subsection*{Tools}
+\subsubsection*{IDA pro}
+Introduction to IDA pro. Explaniation of what it is and how it works.
+\subsubsection*{WinDBG}
+Introduction to WINDBG pro. Explaniation of what it is and how it works.
+\subsubsection*{YARA ? }
+\subsubsection*{XPERF? }
+
+\subsection*{Windows components}
+\subsubsection*{Event Tracing for Windows}
+Complete explainiation of how it works due to its importance for the rest of the analysis. Different components: session, providers, consumers ,etc .
+\subsubsection*{Telemetry}
+Full description of the different features / characteristic which are involved in this analysis. Explaniation of how the worflow of the data is followed.
+
+
+\section*{Previous Work}
+Some lines about previous works in this topic. Most of them focused on just analysis from traffic / documentation. 
+
+\section*{Analysis}
+Specifying the goals we want to achieve and how to get them. 
+\subsection*{Understanding how Telemtry makes use of ETW}
+How ETW works internally: Functions that are being called, 
+\subsubsection*{When and how providers are registered}
+\subsubsection*{How writes are carried out}
+\subsubsection*{Relation between ETW session and ETW providers}
+\subsubsection*{Identifying the buffers}
+\subsubsection*{Provider GUID vs Group Provider GUID}
+\subsubsection*{Checking correctness of logged events}
+\subsubsection*{Automatization of event logging}
+\subsection*{Service isolation}
+\subsection*{Triggers}
+\subsubsection*{searching for new triggers} YARA
+
+\subsection*{Difference among configuration levels of telemtry}
+\subsection*{Analysis of sent data over the channel to Microsfot backend services}
+
+
+
+\section*{Results}
+\section*{Conclusions}
+
+%
+%
+%
+%%%%% ABSTRACTS, AGRADECIMIENTOS Y DEDICATORIA
+%\frontmatter
+%\pagestyle{empty}
+%\section*{Abstract (spanish version)}
+%\input{abs_esp.tex}
+%
+%\cleardoublepage
+%\section*{Abstract (english version)}
+%\input{abs_en.tex} % OPCIONAL: comentar si no se quiere
+%
+%\cleardoublepage
+%\center \  \section*{Greetings}
+%\input{agradecimientos.tex} % OPCIONAL: comentar si no se quiere
+%
+%\cleardoublepage
+%\tableofcontents
+%
+%\mainmatter
+%\pagestyle{headings}
+%
+%%%%% ACA VA EL CONTENIDO DE LA TESIS
+%
+%\chapter{La guerra de las galaxias}
+%\section{Infancia y juventud}
+%{\begin{small}%
+%\begin{flushright}%
+%\it
+%There's nothing for me now.
+%I want to learn the ways of\\ the Force and become a Jedi like my father. \\
+%--Luke Skywalker
+%\end{flushright}%
+%\end{small}%
+%\vspace{.5cm}}
+%
+%\section{Rescate de la princesa}
+%{\begin{small}%
+%\begin{flushright}%
+%\it
+%Here's where the fun begins!\\
+%--Han Solo
+%\end{flushright}%
+%\end{small}%
+%\vspace{.5cm}}
+%
+%\section{Sacrificio y victoria}
+%{\begin{small}%
+%\begin{flushright}%
+%\it
+%This will be a day long remembered.\\ It has seen the end of Kenobi.\\ It will soon see the end of the Rebellion.\\
+%--Darth Vader
+%\end{flushright}%
+%\end{small}%
+%\vspace{.5cm}}
+%
+%%% ...
+%\chapter{El imperio contraataca}
+%\chapter{El regreso del Jedi}
+%
+%%%%% BIBLIOGRAFIA
+%\backmatter
+%%\bibliography{tesis}
+
+\end{document}
