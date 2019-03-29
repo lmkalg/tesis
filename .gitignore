@@ -1,2 +1,3 @@
+*.log
 *pyc
 peda-session-abo1.txt

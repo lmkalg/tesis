@@ -12,25 +12,42 @@
 %%%% CARATULA
 
 \def\autor{Pablo Agustín Artuso \\ LU: 282/11 \\ artusopablo@gmail.com}
-\def\tituloTesis{Analyzing Windows Telemetry component}
-\def\runtitulo{Analyzing Windows Telemetry component}
+\def\tituloTesis{Studying the logging capability of Windows Telemetry component using Reverse Engineering}
 \def\runtitle{}
 \def\director{Rodolfo Baader $<$rbaader@dc.uba.ar$>$}
 \def\codirector{Aleksandar Milenkoski $<$amilenkoski@ernw.de$>$}
-\def\lugar{Buenos Aires, 2018}
+\def\lugar{Buenos Aires, 2019}
 \input{caratula}
 
 \section*{Abstract (english version)}
+Windows, one of the most popular OS, has a component called Telemetry. It collects information from the system with the goal of analyzing and fixing software \& hardware problems, improving the user experience, among others. The kind of information that can be obtained by this component is partially configurable in four different levels: security, basic, enhanced and full, being ”security” the level where less information is gathered and ”full” the opposite case.  
+
+How Telemetry stores/process/administrates the information extracted? It employs a widely used framework called Event Tracer for Windows (ETW) [4]. Embedded not only in userland application but also in the kernel modules, the ETW framework has the goal of providing a common interface to log events and
+therefore help to debug and log system operations, by instrumenting it.
+
+In this work, we are going to analyze a part of the Windows kernel to better understand how Telemetry works from an internal perspective. This work will make windows analysts, IT admins or even windows users, more aware about the functionality of the Telemetry component helping to deal with privacy issues, bug fixing, knowledge of collected data, etc. Our analysis implies performing reverse engineering [5],[6] on the Telemetry component, which involves chal- lenging processes such as kernel debugging, dealing with undocumented kernel internal structures, reversing of bigger frameworks (i.e: ETW), binary libraries which lack symbols, etc. As part of the analysis we will also develop an in depth comparison between the differences among each level of Telemetry, stressing the contrast in the amount of events written, verbosity of information, etc. Finally, we will study how the communication between the Windows instance and the Microsoft backend servers is carried out.
+
 \section*{Abstract (spanish version)}
-\section*{Greetings}
+\section*{Acknowledgments}
 \section*{Motivation}
-
 \section*{Table of content}
-
 \section*{Introduction}
-Explain that this study was carried out in a particular version of windows (1607) 64 bits Enterprise, which lacked of different things (for instance: documentation for different events)
+
+%Explain that this study was carried out in a particular version of windows (1607) 64 bits Enterprise, which lacked of different things (for instance: documentation for different events)
+
+The analysis presented, was carried out in a particular version of the Windows OS. Specifically, Windows 10 64 bits Enterprise, 1607. Windows delivers a new version, usually, each 
+ There are several reasons why this version was choosen, some of them are: 
+\begin{itemize}
+    \item It was one of the mainstream version of Windows at the moment of starting the project.
+    \item It was a long support version (EOS: April 2019).
+    \item It was used by the German Police Office
+\end{itemize}
+
 \subsection*{Basic concepts}
+This section will describe basic concepts needed to fully understand the carried out process to perform the analysis. 
 \subsubsection*{Reverse Engineering}
+Software engineering can be defined as the process of designing, building and testing computer software. The processor of a computer, works with 1's and 0's, therefore developing any kind of sofware will mean 
+
 Key concepts about what RE means, from a general perspective, how it should tackled which tools are usually there.  64 bits, calling convention .. 
 \subsubsection*{Debugging}
 Explaniation of the concept of debugging, what is the different with doing static RE. Some words specifically for KERNEL debugging. 
@@ -39,7 +56,7 @@ Explaniation of the concept of debugging, what is the different with doing stati
 Introduction to IDA pro. Explaniation of what it is and how it works.
 \subsubsection*{WinDBG}
 Introduction to WINDBG pro. Explaniation of what it is and how it works.
-\subsubsection*{YARA ? }
+\subsubsection*{YARA}
 \subsubsection*{XPERF? }
 
 \subsection*{Windows components}
@@ -53,8 +70,19 @@ Full description of the different features / characteristic which are involved i
 Some lines about previous works in this topic. Most of them focused on just analysis from traffic / documentation. 
 
 \section*{Analysis}
-Specifying the goals we want to achieve and how to get them. 
-\subsection*{Understanding how Telemtry makes use of ETW}
+The following analysis was performed over the Telemetry component of the Windows OS, trying to achieve the following goals:
+\begin{itemize}
+    \item Understand how the process of generating logs was carried out.
+    \item How, where and what logs were stored.
+    \item Which applications are involved in gathering Telemetry information
+\end{itemize}
+
+Several files (dynamic libraries, executables, drivers) were analyzed and reversed in order to achieve the goals. However, the main analysis was performed in the {\bfseries ntoskrnl.exe} file, which is the one holding the actual implementation of the Windows Kernel.
+
+Further sections will depict different challenges and achievements faced during the analysis.
+
+\subsection*{Understanding how Telemetry makes use of ETW}
+
 How ETW works internally: Functions that are being called, 
 \subsubsection*{When and how providers are registered}
 \subsubsection*{How writes are carried out}
@@ -66,14 +94,12 @@ How ETW works internally: Functions that are being called,
 \subsection*{Service isolation}
 \subsection*{Triggers}
 \subsubsection*{searching for new triggers} YARA
-
 \subsection*{Difference among configuration levels of telemtry}
 \subsection*{Analysis of sent data over the channel to Microsfot backend services}
 
-
-
 \section*{Results}
 \section*{Conclusions}
+GDPR?
 
 %
 %
