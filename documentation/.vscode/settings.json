@@ -1,0 +1,9 @@
+{
+    "python.linting.enabled": false,
+    "cSpell.words": [
+        "buffer",
+        "etwp",
+        "reserve",
+        "trace"
+    ]
+}

@@ -1,0 +1,23 @@
+site_name: Tuso's Tesis
+pages:
+  - Home: index.md
+  - ETW: etw/etw.md
+  - WinDBG: windbg/windbg.md
+  - Telemetry: telemetry/telemetry.md
+  - Reversing: reversing/reversing.md
+  - Commands/Tools: commands_tools/commands_tools.md
+  - Project:
+    - Workplan: project/workplan.md
+    - Initial Analysis: project/initial_analysis.md
+    - DataVisualizator: project/dataVisualization.md
+    - Triggers: project/triggers.md
+    - Executioner: project/executioner.md
+    - Timeline: project/timeline.md
+    - Questions: project/questions.md 
+    - Ideas: project/ideas.md
+    - TODO: project/todo.md 
+    - Weekly Meetings: 
+      - 9th July : project/9_july.md
+markdown_extensions:
+  - markdown_include.include:
+      base_path: docs

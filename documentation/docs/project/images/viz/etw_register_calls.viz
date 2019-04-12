@@ -1,0 +1,4 @@
+digraph G {
+    "nt!EtwRegister" -> "nt!EtwpRegisterProvider";
+    "nt!EtwRegisterClassicProvider"  -> "nt!EtwpRegisterProvider";
+}

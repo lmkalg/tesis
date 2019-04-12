@@ -1,0 +1,13 @@
+digraph etw_write_calls {
+    "nt!EtwWriteStartScenario" -> "nt!EtwWrite";
+    "nt!WdipStartEndScenario"[color=red];
+    "nt!EtwWriteStartScenario" -> "nt!WdipStartEndScenario"[color=blue];
+    "nt!EtwWriteEndScenario" -> "nt!WdipStartEndScenario"[color=blue];
+    "nt!EtwWriteEndScenario" -> "nt!EtwWrite";
+    "nt!EtwWrite" -> "nt!EtwWriteEx";
+    "nt!EtwWriteTransfer" -> "nt!EtwWriteEx";
+    "nt!EtwWriteEx" -> "nt!EtwpEventWriteFull";
+    "nt!EtwWriteString" -> "nt!EtwpEventWriteFull";
+    "nt!EtwWriteKmSecurityEvent" -> "nt!EtwpEventWriteFull";
+    "EtwpWriteUserEvent"[color=red];
+}
