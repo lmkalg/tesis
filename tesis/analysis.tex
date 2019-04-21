@@ -52,11 +52,28 @@ Therefore, in order to perform the cross-check it was not enough with informatio
 
 Even though the strategy seemed to be theoretically promising, it was necessary to understand how to actually carry out these actions. Further sections will depict that process.
 
-\subsubsection{Reversing registration process}
+\subsection{Reversing registration process}
 
+The first step was, using {\bfseries IDA} \ref{IDA}, analyze the {\bfseries EtwRegister} function. The dissasembly of the function  that the only action being performed was calling a second function named {\bfseries EtwpRegisterProvider}. 
 
+\begin{centering}
+\begin{figure}[H]
+  \includegraphics[width=12cm]{images/etwRegister_code.png}
+  \caption[]{Dissasembly of ETWRegister function}
+  \label{fig:etwRegister_code}
+\end{figure}
+\end{centering}
 
+A quick and vague analysis of it, showed that, apparently, {\bfseries EtwpRegisterProvider} holded the actual implementation of the registration process. However, due to the lack of documentation regarding this function, it was necessary to understand in a mode in-depth way what was actually happening. In order to explain what actions were performed in a better way, lets split it two parts:
+\begin{itemize}
+  \item Check if a GUID for this provider already exists.
+  \item If not, create a new one. 
+\end{itemize}
 
+\subsubsection{Check if GUID for this provider already exists}
+At this point, the layout of the GUID structure was totally unknown. 
+
+After performing some sanity checks, the {\bfseries EtwpRegisterProvider} tries to get a pointer to the GUID structure. This whole part is basically implemented inside another function called {\bfseries EtwpFindGuidEntryByGuid}. It receives 3 parameters:
 
 
 \newpage
