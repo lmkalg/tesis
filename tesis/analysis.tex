@@ -4,6 +4,9 @@ It's important to stress that most of the general analysis was carried out using
 
 Further sections will depict different challenges and achievements faced during the analysis.
 
+
+
+
 \section{Understanding how Telemetry makes use of ETW}
 Where, who and what were some of the questions that needed to be answered in order to be able to get information about the providers that were registered against the DiagTrack session. 
 It's possible to obtain the whole list of providers registered to a particular session, by executing the following powershell command: 
@@ -52,9 +55,18 @@ Therefore, in order to perform the cross-check it was not enough with informatio
 
 Even though the strategy seemed to be theoretically promising, it was necessary to understand how to actually carry out these actions. Further sections will depict that process.
 
-\subsection{Reversing registration process}
 
-The first step was, using {\bfseries IDA} \ref{IDA}, analyze the {\bfseries EtwRegister} function. The dissasembly of the function  that the only action being performed was calling a second function named {\bfseries EtwpRegisterProvider}. 
+
+
+
+
+
+
+
+
+\subsection{Reversing registration process}
+As mentioned in section \ref{etw}, whenever a provider wants to register itself against a particular session, it has to call the function {\bfseries EtwWrite}.
+Because of this, the first step was to analyze the behavior of this function, using {\bfseries IDA}(\ref{IDA}). As we can see in \ref{fig:etwRegsiter_code}, the only action being performed by {\bfseries EtwRegister}, was a call to another function named {\bfseries EtwpRegisterProvider}. 
 
 \begin{centering}
 \begin{figure}[H]
@@ -64,17 +76,93 @@ The first step was, using {\bfseries IDA} \ref{IDA}, analyze the {\bfseries EtwR
 \end{figure}
 \end{centering}
 
-A quick and vague analysis of it, showed that, apparently, {\bfseries EtwpRegisterProvider} holded the actual implementation of the registration process. However, due to the lack of documentation regarding this function, it was necessary to understand in a mode in-depth way what was actually happening. In order to explain what actions were performed in a better way, lets split it two parts:
+A quick analysis of the latter function showed that, apparently, this was the function holding the actual implementation of the registration process. However, due to the lack of documentation regarding this function, it was necessary to understand in a more in-depth way what was actually happening. Following chapters will present a detailed description of reversing (partially, only the interesting parts for this research) {\bfseries EtwpRegisterProvider}. 
+To make it easier, it will be divided in different parts:
 \begin{itemize}
+  \item Understanding the layout of the function
   \item Check if a GUID for this provider already exists.
-  \item If not, create a new one. 
+  \item If not found, create a new one.
+  \item Create new entry and get the handler 
 \end{itemize}
 
+
+\subsubsection{Understanding the layout of the function}
+{\bfseries EtwpRegisterProvider} received seven parameters:
+\begin{verbatim}
+signed __int64 __fastcall EtwpRegisterProvider(__int64 a1, _QWORD *a2,
+       int a3, void (__fastcall *a4)(ULONG_PTR, __int64, __int128 *,
+       __int64), __int64 a5, __int64 a6, __int64 *a7)
+\end{verbatim}
+
+Usually when performing reverse engineering, it is not necessary to understand every tiny detail, but only the key points that are important to meet the proposed goals. This wasn't the exception. 
+
+The main focus here was not to understand how the registration process fully worked but just to get an idea of it plus get to know the relation between GUID and registration handler.
+
+After understanding a little bit more about this function, it was possible to conclude that:
+\begin{enumerate}
+\item {\bfseries a1}: Is the pointer to a structure.
+\item {\bfseries a2}: Is the pointer to the GUID structure. 
+\item {\bfseries a7}: Is the address where the pointer to the registration handler will be placed (can be think as "function output").
+\end{enumerate}
+
+What is this {\bfseries a1} structure?
+The figure \ref{fig:etwRegister_code} shows that before calling {\bfseries EtwpRegisterProvider}, the function {\bfseries PsGetCurrentServerSiloGlobals} is invoked. This latter one returns a pointer to a structure $S$ of type {\bfseries \_ESERVERSILO\_GLOBALS}. 
+
+\begin{centering}
+\begin{figure}[H]
+  \includegraphics[width=12cm]{images/ESILOGLOBALS_structure.png}
+  \caption[]{\_ESERVERSILO\_GLOBALS structure layout ($S$).}
+  \label{fig:eserversilo_globals_structure}
+\end{figure}
+\end{centering}
+
+However, the first parameter provided to {\bfseries EtwpRegisterProvider} is not the pointer to $S$ but is the pointer to another structure $S_2$ of type {\bfseries \_ETW\_SILODRIVERSTATE}. which is part $S$, more precisely, it is situated at the offset 0x350. 
+
+\begin{centering}
+\begin{figure}[H]
+  \includegraphics[width=12cm]{images/ETW_SILODRIVERSTATE_structure.png}
+  \caption[]{\_ETW\_SILODRIVERSTATE structure layout ($S_2$).}
+  \label{fig:etwsilodriverstate_structure}
+\end{figure}
+\end{centering}
+
+With all this information, was possible to conclude that {\bfseries a1} will point to a global structure holding configurations, settings and information in general directly related with the {\bfseries ETW} framework. In the other hand, {\bfseries a2} and {\bfseries a7} will hold pointers to a GUID and to a place were a registration handler will be placed aftewards, respectively. 
+With the knowledge of the purpose of just these three parameters, was possible to move forward.
+
+
 \subsubsection{Check if GUID for this provider already exists}
-At this point, the layout of the GUID structure was totally unknown. 
+One of the very first actions carried out, after some sanity checks, was to try to recover the "GUID entry" associated to the provider's GUID. This is performed by a particular function called {\bfseries EtwpFindGuidEntryByGuid}:
 
-After performing some sanity checks, the {\bfseries EtwpRegisterProvider} tries to get a pointer to the GUID structure. This whole part is basically implemented inside another function called {\bfseries EtwpFindGuidEntryByGuid}. It receives 3 parameters:
+\begin{verbatim}
+ptr_guid_entry = (char *)EtwpFindGuidEntryByGuid(etw_silo, ptr_guid, 0);
+\end{verbatim}
 
+As can be inferred from the previous line, two important parameters are provided: the {\bfseries ETWSILODRIVERSTATE}(a1) structure $S$ and the pointer to the GUID $ptr\_guid$.
+
+\begin{centering}
+\begin{figure}[H]
+  \includegraphics[width=6cm]{images/etwpfindentrybyguid1.png}
+  \caption[]{First basic block of EtwpFindEntryByGuid.}
+  \label{fig:etwsilodriverstate_structure}
+\end{figure}
+\end{centering}
+
+$rcx$ holds the pointer to $S$ and $rdx$ holds $ptr\_guid$
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsubsection{If not found, create a new one}
+\subsubsection{Create new entry and get the handler }
 
 \newpage
 {\huge 1. We couldn't ensure that the data was being written was actually going to the DiagTrack session .}
