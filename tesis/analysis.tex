@@ -143,11 +143,17 @@ As can be inferred from the previous line, two important parameters are provided
 \begin{figure}[H]
   \includegraphics[width=6cm]{images/etwpfindentrybyguid1.png}
   \caption[]{First basic block of EtwpFindEntryByGuid.}
-  \label{fig:etwsilodriverstate_structure}
+  \label{fig:EtwpFindEntryByGuid}
 \end{figure}
 \end{centering}
 
-$rcx$ holds the pointer to $S$ and $rdx$ holds $ptr\_guid$
+Figure \ref{fig:etwsilodriverstate_structure} depicts how the function gets the guid entry related to the provider (if it exists). $rcx$ holds the pointer to $S$ and $rdx$ holds $ptr\_guid$.
+The first highlight is the $add$ function, which stores in $rcx$ the pointer to the structure stored at the offset $0x590$ of $S$. Going back to the structure layouf of $S$ (figure \ref{fig:etwsilodriverstate_structure}), it can be appreciated that at the offset $0x590$, the structure $EtwpGuidHashTable$ of type $\_ETW\_HASH\_BUCKET$ is present.  
+Just before the $add$ function, $eax$ is filled with the content of the address $rdx+8$. $rdx$ holded the $ptr\_guid$ meaning that $eax$ will have the third group of 4 bytes inside of the guid structure. In the following lines, the value of $eax$ is being modified by xoring it sucesive value with the different group of 4 bytes that make up the guid structure. After performing this sucesive xor operations, an and function is applied against $eax$ using a mask of $0x3f$ and lastly multiplies the result of it against $0x38$ (56)
+
+
+
+
 
 
 
