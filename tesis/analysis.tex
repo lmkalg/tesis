@@ -218,11 +218,29 @@ To make it easier, it will be divided in different parts:
   Therefore, as a summary, it is possible to say that:\\
   {\bfseries The function $EtwpFindGuidEntryByGuid$ looks for a particular structure (most probably called guid entry), which is stored inside a double-linked-list of a bucket inside the $EtwpGuidHashTable$ of the $ETWSILODRIVERSTATE$, based on doing some mathematical operations with the GUID of the provider.}
 
-  After finishing with this anlaysis, 
+  After finishing with this analysis, the documentation of the guid entry structure was found: 
+
+  \begin{centering}
+    \begin{figure}[H]
+      \includegraphics[width=12cm]{images/etwguidentrylayout.png}
+      \caption[]{$\_ETW\_GUID\_ENTRY$ structure.}
+      \label{fig:etwguidentry}
+    \end{figure}
+  \end{centering}
+
+  \begin{centering}
+    \begin{figure}[H]
+      \includegraphics[width=8cm]{images/etwguidlayout.png}
+      \caption[]{$\_ETW\_GUID$ structure.}
+      \label{fig:guidlayout}
+    \end{figure}
+  \end{centering}
   
-
-
-
+  Luckily, all the previous guesses made, were correct:
+  \begin{itemize}
+    \item The guid entry (now $\_ETW\_GUID\_ENTRY$) had the GUID of at offset $0x18$ (figure \ref{fig:etwguidentry})
+    \item The GUID was a structure of 16 bytes long (figure \ref{fig:guidlayout})
+  \end{itemize}
 
 
 
@@ -233,10 +251,15 @@ To make it easier, it will be divided in different parts:
 
 
 \subsubsection{If not found, create a new one}
-In the previous section, it was explained how the 
+In the previous section, it was explained how was the process to find an already existing guid entry based on the GUID of the provider. In the current one, the process of creating a new one will be depicted. 
 
+From figure \ref{fig:etwpregisterProvider} can be observed that the function in charge of this part is the function $EtwpAddGuidEntry$:
 
+\begin{verbatim}
+  ptr_guid_entry = EtwpAddGuidEntry(ptr_etw_silo_cpy2, ptr_guid_cpy, 0)
+\end{verbatim}
 
+As can be inferred from the previous line, two important parameters are provided: the pointer to the \_ETW\_SILODRIVERSTATE strucvtu(for simplicity will be called $ptr\_etw\_silo$ instead of $ptr\_etw\_silo\_cpy2$) structure and the pointer to the GUID (for simplicity will be called $ptr\_guid$ instead of $ptr\_guid\_cpy$).
 
 
 \subsubsection{Create new entry and get the handler }
