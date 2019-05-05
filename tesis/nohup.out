@@ -8,3 +8,7 @@
 (evince:1942): EvinceView-CRITICAL **: ev_page_cache_get_annot_mapping: assertion 'page >= 0 && page < cache->n_pages' failed
 
 (evince:1942): EvinceView-CRITICAL **: ev_page_cache_get_annot_mapping: assertion 'page >= 0 && page < cache->n_pages' failed
+
+(evince:12995): Gtk-WARNING **: Attempting to read the recently used resources file at '/home/righam/.local/share/recently-used.xbel', but the parser failed: Failed to open file '/home/righam/.local/share/recently-used.xbel': Permission denied.
+
+(evince:12995): EvinceView-CRITICAL **: ev_page_cache_get_annot_mapping: assertion 'page >= 0 && page < cache->n_pages' failed
