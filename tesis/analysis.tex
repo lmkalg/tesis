@@ -1,3 +1,4 @@
+
 Several files (dynamic libraries, executables, drivers) were analyzed and reversed in order to achieve the aforementioned goals. However, the main analysis was performed in the {\bfseries ntoskrnl.exe} file, which is the one holding the actual implementation of the Windows Kernel.
 
 It's important to stress that most of the general analysis was carried out using the Basic level of Telemetry. 
@@ -6,6 +7,11 @@ Further sections will depict different challenges and achievements faced during 
 
 
 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Understanding how Telemetry makes use of ETW %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Understanding how Telemetry makes use of ETW}
 Where, who and what were some of the questions that needed to be answered in order to be able to get information about the providers that were registered against the DiagTrack session. 
@@ -66,6 +72,9 @@ Even though the strategy seemed to be theoretically promising, it was necessary 
 
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Reversing registration process %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Reversing registration process}
 As mentioned in section \ref{etw}, whenever a provider wants to register itself against a particular session, it has to call the function {\bfseries EtwWrite}.
@@ -89,8 +98,9 @@ To make it easier, it will be divided in different parts:
 \end{itemize}
 
 
-
-
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %% Understanding the layout of the function %%
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
   \subsubsection{Understanding the layout of the function}
   {\bfseries EtwpRegisterProvider} received seven parameters:
@@ -136,6 +146,15 @@ To make it easier, it will be divided in different parts:
   With the knowledge of the purpose of just these three parameters, was possible to move forward.
 
 
+
+
+
+
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %% Check if GUID for this provider already exists %%
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
   \subsubsection{Check if GUID for this provider already exists}
   Once inside the $EtwpRegisterProvider$ function, after performing some sanity checks, it tries to get the guid entry related with the GUID. If it doesn't exist, it will create one. 
   
@@ -147,7 +166,7 @@ To make it easier, it will be divided in different parts:
   \end{figure}
   \end{centering}
 
-  In this section, the focus will be on understanding how the process of recovering the already existing "GUID entry" works.
+  In this part, the focus will be on understanding how the process of recovering the already existing "GUID entry" works.
 
   The action of recovering is performed by a particular function called {\bfseries EtwpFindGuidEntryByGuid}:
 
@@ -180,7 +199,7 @@ To make it easier, it will be divided in different parts:
   ptr_bucket = ptr_hash_table + 0x38 * ((xor_guid_parts) & 0x3F) 
   \end{verbatim}
 
-  Therefore, $ptr\_bucket$ is basically a pointer to a particular bucket inside the $EtwpGuidHashTable$, calculated based on the GUID of the provider. 
+  Therefore, $ptr\_bucket$ is basically a pointer to a particular bucket inside the $EtwpGuidHashTable$, calculated based on the GUID of the provider\footnote{There was also an additional value involved in the calculation of the bucket. However, in this particular context, the value wasn't taken into account as it was always 0. }. 
   Once this value is determined, a "look up" inside the structure is carried out in the following way:
 
   \begin{centering}
@@ -244,11 +263,9 @@ To make it easier, it will be divided in different parts:
 
 
 
-
-
-
-
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% IF NOT FOUND CREATE A NEW ONE%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsubsection{If not found, create a new one}
 In the previous section, it was explained how was the process to find an already existing guid entry based on the GUID of the provider. In the current one, the process of creating a new one will be depicted. 
@@ -259,8 +276,24 @@ From figure \ref{fig:etwpregisterProvider} can be observed that the function in 
   ptr_guid_entry = EtwpAddGuidEntry(ptr_etw_silo_cpy2, ptr_guid_cpy, 0)
 \end{verbatim}
 
-As can be inferred from the previous line, two important parameters are provided: the pointer to the \_ETW\_SILODRIVERSTATE strucvtu(for simplicity will be called $ptr\_etw\_silo$ instead of $ptr\_etw\_silo\_cpy2$) structure and the pointer to the GUID (for simplicity will be called $ptr\_guid$ instead of $ptr\_guid\_cpy$).
+As can be inferred from the previous line, two important parameters were provided: the pointer to the \_ETW\_SILODRIVERSTATE structure (for simplicity will be called $ptr\_etw\_silo$ instead of $ptr\_etw\_silo\_cpy2$) and the pointer to the GUID (for simplicity will be called $ptr\_guid$ instead of $ptr\_guid\_cpy$).
 
+One of the first lines of $EtwpAddGuidEntry$, calls another function named $EtwpAllocGuidEntry$. As it can be quickly inferred from the name, it basically allocates certain amount of memory inside the heap to be used by the guid entry afterwards and returns the pointer to it. The allocation part happens in the first basic block of $EtwpAllocGuidEntry$:
+
+  \begin{centering}
+    \begin{figure}[H]
+      \includegraphics[width=12cm]{images/etwpallocguidentry.png}
+      \caption[]{$EtwpAllocGuidEntry$ allocation.}
+      \label{fig:etwallocguidentry}
+    \end{figure}
+  \end{centering}
+
+As can be observed in figure \ref{fig:etwallocguidentry} the Windows function $ExAllocatePoolWithTag$\footnote{Documentation: https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/content/wdm/nf-wdm-exallocatepoolwithtag} is called with the following parameters:
+\begin{itemize}
+\item {\bfseries PoolType}: 0x200 ({\bfseries NonPagedPoolNx}). This value indicates that the system memory allocated will be nonpageable and not executable\footnote{Documentation: https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/content/wdm/ne-wdm-\_pool\_type}.
+\item {\bfseries NumberOfBytes}: 0x190. This value is the size of the structure $\_ETW\_GUID\_ENTRY$ (\ref{fig:etwguidentry}).
+\item {\bfseries Tag}: "0x47777445". According the documentation just a four character long to be used as the pool tag. Due to it is specified in reverse order: 0x45747747 $\rightarrow$ "EtwG".
+\end{itemize}
 
 \subsubsection{Create new entry and get the handler }
 
