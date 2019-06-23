@@ -18,8 +18,7 @@
 \contentsline {subsection}{\numberline {4.1.1}Reversing registration process}{11}
 \contentsline {subsubsection}{\numberline {4.1.1.1}Understanding the layout of the function}{12}
 \contentsline {subsubsection}{\numberline {4.1.1.2}Check if GUID for this provider already exists}{13}
-\contentsline {subsubsection}{\numberline {4.1.1.3}If not found, create a new one}{17}
-\contentsline {subsubsection}{\numberline {4.1.1.4}Create new entry and get the handler }{18}
+\contentsline {subsubsection}{\numberline {4.1.1.3}If not found, create a new one and get the handler}{17}
 \contentsline {section}{\numberline {4.2}When and how providers are registered}{19}
 \contentsline {section}{\numberline {4.3}How writes are carried out}{19}
 \contentsline {section}{\numberline {4.4}Relation between ETW session and ETW providers}{19}
@@ -34,4 +33,6 @@
 \contentsline {section}{\numberline {4.13}Analysis of sent data over the channel to Microsfot backend services}{19}
 \contentsline {chapter}{\numberline {5.}Results}{20}
 \contentsline {chapter}{\numberline {6.}Conclusions}{21}
-\contentsline {chapter}{\numberline {7.}References}{22}
+\contentsline {chapter}{\numberline {7.}Appendixes}{22}
+\contentsline {section}{\numberline {7.1}Structures layout}{22}
+\contentsline {chapter}{\numberline {8.}References}{23}

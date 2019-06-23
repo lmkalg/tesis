@@ -93,8 +93,7 @@ To make it easier, it will be divided in different parts:
 \begin{itemize}
   \item Understanding the layout of the function
   \item Check if a GUID for this provider already exists.
-  \item If not found, create a new one.
-  \item Create new entry and get the handler 
+  \item If not, create a new one and get the handler.
 \end{itemize}
 
 
@@ -178,9 +177,9 @@ To make it easier, it will be divided in different parts:
 
   \begin{centering}
   \begin{figure}[H]
-    \includegraphics[width=6cm]{images/etwpfindentrybyguid1.png}
-    \caption[]{First basic block of EtwpFindEntryByGuid.}
-    \label{fig:EtwpFindEntryByGuid}
+    \includegraphics[width=6cm]{images/etwpfindguidguidentrybyguid1.png}
+    \caption[]{First basic block of EtwpFindGuidEntryByGuid.}
+    \label{fig:EtwpFindGuidEntryByGuid}
   \end{figure}
   \end{centering}
 
@@ -204,9 +203,9 @@ To make it easier, it will be divided in different parts:
 
   \begin{centering}
   \begin{figure}[H]
-    \includegraphics[width=12cm]{images/etwpfindentrybyguid_while.png}
-    \caption[]{Part of EtwpFindEntryByGuid function extracted using IDA Hex-Rays plugin.}
-    \label{fig:EtwpFindEntryByGuid_while}
+    \includegraphics[width=12cm]{images/etwpfindguidentrybyguid_while.png}
+    \caption[]{Part of EtwpFindGuidEntryByGuid function extracted using IDA Hex-Rays plugin.}
+    \label{fig:EtwpFindGuidEntryByGuid_while}
   \end{figure}
   \end{centering}
 
@@ -235,7 +234,7 @@ To make it easier, it will be divided in different parts:
   If both comparisons are equal (the GUID of the provider and the one stored in $T$ are the same), a function called $EtwpReferenceGuidEntry$ with the current value of the iterator as parameter, is called. After this execution, the cycle is finished by the break statement. However, before executing the exit routine, the value of $v4$ is filled up with the value of the $iterator$, meaning that the return value will be pointer to the guid entry related to the GUID of the provider. The $EtwpReferenceGuidEntry$ function just made some security checks not relevant for this task. \\
 
   Therefore, as a summary, it is possible to say that:\\
-  {\bfseries The function $EtwpFindGuidEntryByGuid$ looks for a particular structure (most probably called guid entry), which is stored inside a double-linked-list of a bucket inside the $EtwpGuidHashTable$ of the $ETWSILODRIVERSTATE$, based on doing some mathematical operations with the GUID of the provider.}
+  {\bfseries The function $EtwpFindGuidEntryByGuid$ looks for a particular structure (most probably called guid entry), which is stored inside a double-linked-list of a bucket inside the $EtwpGuidHashTable$ of the $\_ETW\_SILODRIVERSTATE$, based on doing some mathematical operations with the GUID of the provider.}
 
   After finishing with this analysis, the documentation of the guid entry structure was found: 
 
@@ -243,7 +242,7 @@ To make it easier, it will be divided in different parts:
     \begin{figure}[H]
       \includegraphics[width=12cm]{images/etwguidentrylayout.png}
       \caption[]{$\_ETW\_GUID\_ENTRY$ structure.}
-      \label{fig:etwguidentry}
+      \label{fig:etwguidentrylayout}
     \end{figure}
   \end{centering}
 
@@ -257,7 +256,7 @@ To make it easier, it will be divided in different parts:
   
   Luckily, all the previous guesses made, were correct:
   \begin{itemize}
-    \item The guid entry (now $\_ETW\_GUID\_ENTRY$) had the GUID of at offset $0x18$ (figure \ref{fig:etwguidentry})
+    \item The guid entry (now $\_ETW\_GUID\_ENTRY$) had the GUID of at offset $0x18$ (figure \ref{fig:etwguidentrylayout})
     \item The GUID was a structure of 16 bytes long (figure \ref{fig:guidlayout})
   \end{itemize}
 
@@ -267,7 +266,7 @@ To make it easier, it will be divided in different parts:
 %% IF NOT FOUND CREATE A NEW ONE%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{If not found, create a new one}
+\subsubsection{If not found, create a new one and get the handler}
 In the previous section, it was explained how was the process to find an already existing guid entry based on the GUID of the provider. In the current one, the process of creating a new one will be depicted. 
 
 From figure \ref{fig:etwpregisterProvider} can be observed that the function in charge of this part is the function $EtwpAddGuidEntry$:
@@ -291,11 +290,50 @@ One of the first lines of $EtwpAddGuidEntry$, calls another function named $Etwp
 As can be observed in figure \ref{fig:etwallocguidentry} the Windows function $ExAllocatePoolWithTag$\footnote{Documentation: https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/content/wdm/nf-wdm-exallocatepoolwithtag} is called with the following parameters:
 \begin{itemize}
 \item {\bfseries PoolType}: 0x200 ({\bfseries NonPagedPoolNx}). This value indicates that the system memory allocated will be nonpageable and not executable\footnote{Documentation: https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/content/wdm/ne-wdm-\_pool\_type}.
-\item {\bfseries NumberOfBytes}: 0x190. This value is the size of the structure $\_ETW\_GUID\_ENTRY$ (\ref{fig:etwguidentry}).
+\item {\bfseries NumberOfBytes}: 0x190. This value is the size of the structure $\_ETW\_GUID\_ENTRY$ (\ref{fig:etwguidentry})layout.
 \item {\bfseries Tag}: "0x47777445". According the documentation just a four character long to be used as the pool tag. Due to it is specified in reverse order: 0x45747747 $\rightarrow$ "EtwG".
 \end{itemize}
 
-\subsubsection{Create new entry and get the handler }
+Therefore, as it was thought, $EtwpAllocGuidEntry$ allocs the necessary memory for holding the $\_ETW\_GUID\_ENTRY$ structure and returns a heap pointer to it. 
+The remaining code of $EtwpAddGuidEntry$ is devoted to populate and adjust the related structures. Some key points about it: 
+\begin{itemize}
+\item A guid entry related to this guid is looked up inside the guid entries double-linked list using the same technique as the one used in $EtwpFindGuidEntryByGuid$. If a structure is found, the pointer is freed.
+\item Only three parts of the structure are populated at this point:
+  \begin{enumerate}
+  \item The pointer to the previous guid entry in the double-linked list (offset 0x0)
+  \item The pointer to the following guid entry in the double-linked list (offset 0x8)
+  \item The pointer to the SILO STATE (offset 0x178)
+  \end{enumerate}
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%      To be written           %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \newpage
 {\huge 1. We couldn't ensure that the data was being written was actually going to the DiagTrack session .}
