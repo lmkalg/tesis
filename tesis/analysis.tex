@@ -77,7 +77,7 @@ Even though the strategy seemed to be theoretically promising, it was necessary 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Reversing registration process}
-As mentioned in section \ref{etw}, whenever a provider wants to register itself against a particular session, it has to call the function {\bfseries EtwWrite}.
+As mentioned in section \ref{etw}, whenever a provider wants to register itself against a particular session, it has to call the function {\bfseries EtwRegister}.
 Because of this, the first step was to analyze the behavior of this function, using {\bfseries IDA}(\ref{IDA}). As we can see in \ref{fig:etwRegister_code}, the only action being performed by {\bfseries EtwRegister}, was a call to another function named {\bfseries EtwpRegisterProvider}. 
 
 \begin{centering}
@@ -93,7 +93,8 @@ To make it easier, it will be divided in different parts:
 \begin{itemize}
   \item Understanding the layout of the function
   \item Check if a GUID for this provider already exists.
-  \item If not, create a new one and get the handler.
+  \item If not, create a new one
+  \item Return the handler.
 \end{itemize}
 
 
@@ -101,7 +102,7 @@ To make it easier, it will be divided in different parts:
   %% Understanding the layout of the function %%
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-  \subsubsection{Understanding the layout of the function}
+  \subsubsection{\bfseries{Understanding the layout of the function}}
   {\bfseries EtwpRegisterProvider} received seven parameters:
   \begin{verbatim}
   signed __int64 __fastcall EtwpRegisterProvider(__int64 a1, _QWORD *a2,
@@ -154,7 +155,7 @@ To make it easier, it will be divided in different parts:
   %% Check if GUID for this provider already exists %%
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-  \subsubsection{Check if GUID for this provider already exists}
+  \subsubsection{\bfseries{Check if GUID for this provider already exists}}
   Once inside the $EtwpRegisterProvider$ function, after performing some sanity checks, it tries to get the guid entry related with the GUID. If it doesn't exist, it will create one. 
   
   \begin{centering}
@@ -189,7 +190,7 @@ To make it easier, it will be divided in different parts:
 
   Just before the $add$ function, $eax$ is filled with the content of the address $rdx+8$. $rdx$ held the $ptr\_guid$, meaning that $eax$ will have the third group of 4 bytes inside of the guid structure. Why the third? Because the offset was 8. Why 4 bytes? Because the register $eax$ (32 bits) was used.
 
-  In the following lines, the value of $eax$ is being constantly modified by xoring it, successively with the different group of 4 bytes that compose the guid structure\footnote{Sometimes the structures weren't documented at all. Sometimes they were, but was not possible to find it until some kind of clue pointing to it was found.  So far the layout of the structure pointed by $ptr\_guid$ was unknown, however from this function it was possible to conclude that the structure had a size of 16 bytes.}. After performing this successive xor operations, an and function is applied against $eax$ using a mask of $0x3f$ and lastly multiplies the result of it against $0x38$ (size of $\_ETW\_HASH\_BUCKET$ structure). Finally, the value of $rax$($eax$) is added to $rcx$ which had the pointer to the $EtwpGuidHashTable$ structure. 
+  In the following lines, the value of $eax$ is being constantly modified by xoring it, successively with the different group of 4 bytes that compose the guid structure\footnote{Sometimes the structures weren't documented at all. Sometimes they were, but was not possible to find it until some kind of clue pointing to it was found.  So far the layout of the structure pointed by $ptr\_guid$ was unknown, however from this function it was possible to conclude that the structure had a size of 16 bytes.}. After performing these successive xor operations, an and function is applied against $eax$ (result of xoring) using a mask of $0x3f$. A mask like this means that only the last 6 bits of the result really cares, and this is totally reasonable due to $2^6 = 64$. In other words, this mask is making the xoring result fit into the range of a valid bucket index. Afterwards, multiplies the result against $0x38$ (size of $\_ETW\_HASH\_BUCKET$ structure). Finally, the value of $rax$($eax$) is added to $rcx$ which had the pointer to the $EtwpGuidHashTable$ structure. 
 
   Writing the aforementioned function in a pseudo-code style ($ptr$ is a short version of "pointer"): 
   \begin{verbatim}
@@ -266,7 +267,7 @@ To make it easier, it will be divided in different parts:
 %% IF NOT FOUND CREATE A NEW ONE%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{If not found, create a new one and get the handler}
+\subsubsection{\bfseries{If not found, create a new one}}
 In the previous section, it was explained how was the process to find an already existing guid entry based on the GUID of the provider. In the current one, the process of creating a new one will be depicted. 
 
 From figure \ref{fig:etwpregisterProvider} can be observed that the function in charge of this part is the function $EtwpAddGuidEntry$:
@@ -295,7 +296,7 @@ As can be observed in figure \ref{fig:etwallocguidentry} the Windows function $E
 \end{itemize}
 
 Therefore, as it was thought, $EtwpAllocGuidEntry$ allocs the necessary memory for holding the $\_ETW\_GUID\_ENTRY$ structure and returns a heap pointer to it. 
-The remaining code of $EtwpAddGuidEntry$ is devoted to populate and adjust the related structures. Some key points about it: 
+The remaining code of $EtwpAddGuidEntry$ is devoted to populate and adjust some parts of related structures. Some key points about it: 
 \begin{itemize}
 \item A guid entry related to this guid is looked up inside the guid entries double-linked list using the same technique as the one used in $EtwpFindGuidEntryByGuid$. If a structure is found, the pointer is freed.
 \item Only three parts of the structure are populated at this point:
@@ -306,6 +307,7 @@ The remaining code of $EtwpAddGuidEntry$ is devoted to populate and adjust the r
   \end{enumerate}
 \end{itemize}
 
+Once $EtwpAllocGuidEntry$ is executed, the pointer to heap memory holding the $\_ETW\_GUID\_ENTRY$ structure is returned. The next step is insert this entry into $EtwpGuidHashTable$. To perform that action, first it look for the correct place to insert it as depicted previously.
 
 
 
@@ -313,11 +315,28 @@ The remaining code of $EtwpAddGuidEntry$ is devoted to populate and adjust the r
 
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%     RETURN THE HANDLER       %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\subsubsection{\bfseries{Return the handler}}
+Going back to what the figure \ref{fig:etw_register_docu} states, the 4th parameter of $EtwRegister$ it's something of type $PREGHANDLE$. Although it isn't very clear, this will be the "output" of the function. Furthermore, as it was mentioned previously the real registration logic is implemented by $EtwpRegisterProvider$ therefore the output of $EtwRegister$ is none other than the output of $EtwpRegisterProvider$.
 
+No matter if the provider's GUID existed previously or not, at this point it exist a pointer to a $\_ETW\_GUID\_ENTRY$ structure holding its data and already inside the main structures of ETW. 
+Once the code achieved this point, the next step is basically get the handler.
 
+Just right after the pointer to the $\_ETW\_GUID\_ENTRY$ is found, the function $EtwpAddKmRegEntry$ is called:
+\begin{verbatim}
+__int64 __usercall EtwpAddKmRegEntry(ULONG_PTR a1, int a2, __int64 a3,
+__int64 a4, __int64 a5)
+\end{verbatim}
 
-
+where :
+\begin{enumerate}
+  \item {\bfseries a1}: Is the pointer to $\_ETW\_GUID\_ENTRY$, called $ptr\_guid$. 
+  \item {\bfseries a5}: Is the memory address provided by $EtwWrite$ (and afterwards by $EtwpRegisterProvider$) where the handler should be placed. 
+\end{enumerate}
+The remaining parameters are not interesting for the sake of our research.
 
 
 

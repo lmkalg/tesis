@@ -1,1 +1,1 @@
-# Repository for my bachelor's thesis
+# Repository for my master's thesis
