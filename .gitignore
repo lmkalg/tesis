@@ -1,4 +1,5 @@
 *.log
+*.pdf
 
 *pyc
 peda-session-abo1.txt

@@ -7,6 +7,25 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{float}
+\definecolor{dark_green}{RGB}{0,100,0}
+
+
+\lstset{frame=tb,
+  language=C,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dark_green},
+  stringstyle=\color{red},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
 
 \setcounter{secnumdepth}{10}
 \setcounter{tocdepth}{10}
