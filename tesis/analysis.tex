@@ -513,7 +513,7 @@ This quick result made two new questions to be raised
 
 Further and deeper analysis was needed.
 
-\subsubsection{\bfseries{ETW functions to write}}
+\subsection{\bfseries{ETW functions to write}}
 
 A quick analysis of the symbols and cross references of the {\bfseries ntoskrnl.exe} binary showed that there were actually a "group of functions" that could be used to perform writes within the ETW framework:
 
@@ -528,8 +528,82 @@ A quick analysis of the symbols and cross references of the {\bfseries ntoskrnl.
 As can be appreciated in figure \ref{fig:etw_write_group_functions} all functions end up calling  either {\bfseries nt!EtwpEventWriteFull} or {\bfseries nt!EtwpWriteUserEvent} or {\bfseries nt!WdispStartEndScenario}. After extensive analysis logging all actions and which functions were executed it was possible to detect that the function {\bfseries nt!WdispStartEndScenario} was never called under the context of interest of this research and therefore it was possible to discard it from further analysis. 
 
 
-\subsubsection{\bfseries{Ensuring providers write to DiagTrack session}}
-Not only it wasn't possible to ensure that writes were affecting DiagTrack's session but also most of the analysis was being carried out manually. In order to conduct further and deeper analysis, automation needed.
+\subsection{\bfseries{Ensuring providers write to DiagTrack session}}
+The previous idea of only analyzing writes from providers that were returned by the powershell command had, at least, three problems:
+
+\begin{enumerate}
+\setlength\itemsep{0.05em}
+  \item The output of the powershell command returns the providers that are registered in a particular session at a given time $t$. If a provider registers, writes and unregisters itself from the session in a given time $t_2$ with $t_2 \neq t$, that write won't be took into consideration.
+  \item Even if the provider is registered against DiagTrack's session, this doesn't ensure the provider is currently writing to it.
+  \item It relied too much on manual analysis.
+\end{enumerate}
+
+With these problems in mind new ideas started to appear. In particular there was one that made the difference: What if it's possible to relate the handler that it's used at the moment of writing, with the session where the provider going to write, somehow. If that's possible, the first two problems would be solved. The third one could be solved as only one breakpoint at the writing function will be enough to make the full analysis. In order to find this relationship, an analysis of different structures related to ETW had to be performed.
+
+Following section will detail the process of analyzing this structures together with its results.
+
+
+\subsubsection{\bfseries Inspecting ETW structures}
+So far it happened a lot that ETW structures were the key to overcome different obstacles. The first structure analyzed was $\_ETW\_REG\_ENTRY$ (figure \ref{fig:regentrylayout}) as it would have been the most direct and easier way to relate session and provider. Unfortunately, none of its components was helpful.
+
+The next structure analyzed was $\_WMI\_LOGGER\_CONTEXT$. This structure seemed to be represent an ETW session. Due to the size of this structure only the necessary and representative offsets are depicted: 
+
+\begin{figure}[H]
+  \begin{lstlisting}
+   +0x000 LoggerId         : Uint4B
+   +0x004 BufferSize       : Uint4B
+   +0x008 MaximumEventSize : Uint4B
+   +0x00c LoggerMode       : Uint4B
+   +0x010 AcceptNewEvents  : Int4B
+   [...]
+   +0x070 ProviderBinaryList : _LIST_ENTRY
+   +0x080 BatchedBufferList : Ptr64 _WMI_BUFFER_HEADER
+   +0x080 CurrentBuffer    : _EX_FAST_REF
+   +0x088 LoggerName       : _UNICODE_STRING
+   +0x098 LogFileName      : _UNICODE_STRING
+   +0x0a8 LogFilePattern   : _UNICODE_STRING
+   +0x0b8 NewLogFileName   : _UNICODE_STRING
+   [...]
+   +0x428 LastBufferSwitchTime : _LARGE_INTEGER
+   +0x430 BufferWriteDuration : _LARGE_INTEGER
+   +0x438 BufferCompressDuration : _LARGE_INTEGER
+  \end{lstlisting} 
+  \caption[]{$\_WMI\_LOGGER\_CONTEXT$ structure.}
+  \label{fig:wmi_logger_context}
+\end{figure}
+
+Each session created inside the ETW framework will be represented by one of this structures. At offset $0x70$ there is an attribute called {\bfseries ProviderBinaryList}. After a quick analysis this attribute seemed to held all providers registered against the session in the format of a double linked list. In order to confirm that theory, the process of attaching new providers to an existing session was analyzed. 
+
+The function $nt!EtwpAddProviderToSession$ seemed to be the one creating these links. However due to several reasons (lot of unknown new functions, hard to reverse and more) the analysis was cancelled. Besides the mentioned reasons there was one that was actually the one that made the preivous analysis to got cancelled: The finding of a new and promising structure. 
+
+\subsubsection{\bfseries New structure: Trace enable info}
+
+Among all structures related to the ETW there was one called $\_TRACE\_ENABLE\_INFO$:
+
+\begin{centering}
+  \begin{figure}[H]
+    \includegraphics[width=9cm]{images/trace_enable_info.png}
+    \caption[]{Trace Enable Info structure.}
+    \label{fig:trace_enable_info}
+  \end{figure}
+\end{centering}
+
+This structure seemed to contain the relation between a session and the provider (bingo!). This structure was found by analysing $\_ETW\_GUID\_ENTRY$ and how it was used when executing writing functions. As can be seen in figure \ref{fig:etwguidentrylayout}, at offset $0x50$ and $0x70$ there are structures of type $\_TRACE\_ENABLE\_INFO$.
+
+
+the first one... is.. 
+the second one is an array... 
+
+
+nside the handler structure, we found one (seems to be special) of this guys and afterwards an array of 8 of them. Doing some empiric (TODO: Find this in the code) tests, I realize that if a provider is enabled for a session, then the "special" one will have the activated field in 1, but nothing in the loggerid field. Seems that this "special" is only for telling that the provider is enabled, but if you want more information about it you should go to each bucket of the array. Experience tell that if the "special" has the field activated in 1, there must be at least one bucket in the array with information about a session. There, you'll find, in the loggerid field, so this is our link to the session!.
+
+\subsubsection{\bfseries asdassds}
+
+
+
+
+
+
 
 
 
