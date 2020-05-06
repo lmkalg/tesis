@@ -451,34 +451,36 @@ After finishing with this analysis, the documentation of the registration handle
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%  First steps into catching writes from providers  %%%%%%
+%%%%  Hooking into providers' writes  %%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-\section{First steps into catching writes from providers}
+\section{Hooking into providers' writes}
 In section \ref{understanding_telemetry_etw} an idea on how to answer two important questions was presented: Hook in the exact moment when providers write to DiagTrack's session. However the idea would have been unfeasible without the analysis performed in section \ref{reversing_registration_process}.
 
-At this point it is possible to detect if a particular provider is writing by knowing just its GUID. However it was important to understand to which session this provider was writing. For an initial analysis a mix between automatic and manual analysis was performed. A breakpoint in the function {\bfseries EtwWrite} was set using the following Windbg(\ref{Windbg}) script:
+At this point it was possible to detect if a particular provider was writing by knowing just its GUID. However it was important to understand to which session this provider was writing. 
+
+For an initial analysis a mix between automatic and manual analysis was performed. A breakpoint in the function {\bfseries EtwWrite} was set using the following Windbg(\ref{Windbg}) script:
 \begin{lstlisting}
 bp nt!EtwWrite ".printf \"Handler: %N\\n\",@rcx"
 \end{lstlisting}
 
-This script just printed the address of provider's registration handle that is making a write (@$rcx$ holds the first parameter of the function according to Windows x64 calling convention). Once the handler's address was obtained it was possible to get the GUID as well. Comparing the GUID with the output of the powershell command {\bfseries Get-EtwTraceProvider } (without filters) threw an interesting result: Most of the time a provider with E02A841C-75A3-4FA7-AFC8-AE09CF9B7F23 as GUID was the one writing. This provider wasn't related with DiagTrack at all. 
+This script just printed the address of provider's registration handle that is performing the write (@$rcx$ holds the first parameter of the function according to Windows x64 calling convention). Once the handler's address was obtained it was possible to get the GUID as well. Comparing the GUID with the output of the powershell command {\bfseries Get-EtwTraceProvider } (without filters) threw an interesting result: Most of the time a provider with E02A841C-75A3-4FA7-AFC8-AE09CF9B7F23 as GUID was the one writing. Unfortunately, this provider wasn't related to DiagTrack at all. 
 
-The following step was to filter out this provider: 
+With the goal of filtering out writes carried out by this provider, the following script was used:
 \begin{lstlisting}
 bp nt!EtwWrite ".if (@rcx != ffffda839f0c2c50){.printf \"Handler: %N\\n\",@rcx;gc;}.else{gc;} "
 \end{lstlisting}
 
-Unfortunately, providers which weren't related to DiagTrack neither flooded the output of the script. Clearly, this wasn't a good path. 
+However, this wasn't enough. Providers which weren't related to DiagTrack continued flooding the output of the script. Clearly, this wasn't a good approach. 
 
-With the goal of pursuing interesting results, the function was changed by another one called {\bfseries EtwWriteTransfer}:.
+With the objective of pursuing interesting results, another ETW-related writing function called {\bfseries EtwWriteTransfer} was used :
 
 \begin{lstlisting}
 bp nt!EtwWriteTransfer ".if (@rcx != ffffda839f0c2c50){.printf \"Handler: %N\\n\",@rcx;gc;}.else{gc;}"
 \end{lstlisting}
 
-This time, a new provider attached to DiagTrack with GUID E9EAF418-0C07-464C-AD14-A7F353349A00 appeared. In order to get some more information, the script was updated once more to get the Call Stack of the provider's process:
+This time, a new provider attached to DiagTrack with GUID E9EAF418-0C07-464C-AD14-A7F353349A00 appeared. To get some extra information, the script was updated once more to get the Call Stack of the provider's process:
 \begin{lstlisting}
 bp nt!EtwWriteTransfer ".if (@rcx == FFFFDA83A036F0D0){.printf \"Handler: %N\\n\",@rcx;kc;gc;}.else{gc;} "
  
@@ -495,25 +497,21 @@ bp nt!EtwWriteTransfer ".if (@rcx == FFFFDA83A036F0D0){.printf \"Handler: %N\\n\
 09 0x0
 \end{lstlisting}
 
-At this point, the only way so far to detect when providers related to DiagTrack were writing consisted in two steps: 
+So far, the only way to detect when providers related to DiagTrack were writing consisted in two steps: 
+
 \begin{enumerate}
 \setlength\itemsep{0.05em}
-\item Hook in the ETW write function call.
+\item Hook in the $EtwWrite$ function call.
 \item Check if the provider is attached to DiagTrack based on its GUID and the output of the powershell command.
 \end{enumerate}
 
-However, even if it was a DiagTrack's related provider the one writing, it is not enough to ensure that it is currently writing to DiagTrack's session as providers could be attached to several sessions.
+However, even if it was a DiagTrack's related provider the one writing, it was not enough to ensure that it is currently writing to DiagTrack's session (providers could be attached to several sessions). Furthermore, $EtwWriteTransfer$ showed that $EtwWrite$ wasn't the only function involved in the writing process. In other words, the following two questions were raised:
 
-This quick result made two new questions to be raised
 \begin{enumerate}
 \setlength\itemsep{0.05em}
-  \item 1. Is {\bfseries EtwWrite} the only write function used? (clearly no!)
-  \item 2. How can we sure that a provider is actually writing to DiagTrack's session
+  \item Is {\bfseries EtwWrite} the only write function used? (clearly no!)
+  \item How can we sure that a provider is actually writing to DiagTrack's session
 \end{enumerate}
-
-Further and deeper analysis was needed.
-
-
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -522,7 +520,7 @@ Further and deeper analysis was needed.
 
 \subsection{\bfseries{ETW functions to write}}
 
-A quick analysis of the symbols and cross references of the {\bfseries ntoskrnl.exe} binary showed that there were actually a "group of functions" that could be used to perform writes within the ETW framework:
+A quick analysis of symbols and cross references of {\bfseries ntoskrnl.exe} binary showed that there were actually a "group of functions" that could be used to perform writes within the ETW framework:
 
 \begin{centering}
   \begin{figure}[H]
@@ -532,7 +530,7 @@ A quick analysis of the symbols and cross references of the {\bfseries ntoskrnl.
   \end{figure}
 \end{centering}
 
-As can be appreciated in figure \ref{fig:etw_write_group_functions} all functions end up calling  either {\bfseries nt!EtwpEventWriteFull} or {\bfseries nt!EtwpWriteUserEvent} or {\bfseries nt!WdispStartEndScenario}. After extensive analysis logging all actions and which functions were executed it was possible to detect that the function {\bfseries nt!WdispStartEndScenario} was never called under the context of interest of this research and therefore it was possible to discard it from further analysis. 
+As can be appreciated in figure \ref{fig:etw_write_group_functions} all functions end up calling either {\bfseries nt!EtwpEventWriteFull}, {\bfseries nt!EtwpWriteUserEvent} or {\bfseries nt!WdispStartEndScenario}. After extensive analysis logging all actions and functions that were executed, it was possible to conclude that the function {\bfseries nt!WdispStartEndScenario} was never called under the context of interest of this research. This meant, that the analysis of the writing phase could be carried out focusing only in the first two functions: {\bfseries nt!EtwpEventWriteFull} and {\bfseries nt!EtwpWriteUserEvent}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%  Ensuring providers write to DiagTrack session
@@ -543,14 +541,14 @@ The previous idea of only analyzing writes from providers that were returned by 
 
 \begin{enumerate}
 \setlength\itemsep{0.05em}
-  \item The output of the powershell command returns the providers that are registered in a particular session at a given time $t$. If a provider registers, writes and unregisters itself from the session in a time frame $tf$ where $t \not\in tf$, that write won't be took into consideration.
+  \item The output of the powershell command returned providers that were registered in a particular session at a given time $t$. If a provider registers, writes and unregisters itself from the session in a time frame $tf$ where $t \not\in tf$, that write won't be took into consideration.
   \item Even if the provider is registered against DiagTrack's session, this doesn't ensure the provider is currently writing to it.
   \item It relied too much on manual analysis.
 \end{enumerate}
 
-With these problems in mind new ideas started to appear. In particular there was one that made the difference: What if it's possible to relate the handler that it's used at the moment of writing, with the session where the provider going to write, somehow. If that's possible, the first two problems would be solved. The third one could be solved as only one breakpoint at the writing function will be enough to make the full analysis. In order to find this relationship, an analysis of different structures related to ETW had to be performed.
+With these problems in mind new ideas began to appear. In particular there was one that made the difference: What if it's possible to relate the handler that it's used at the moment of writing, with the session where the provider going to write. If that's possible, the first two problems would be solved. The third one could be solved as only one breakpoint at the writing function will be enough to make the full analysis. 
 
-Following sections will detail the process to find an answer to this problem.
+Following sections will detail the process to find an answer to these problems.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -589,20 +587,23 @@ The next structure analyzed was $\_WMI\_LOGGER\_CONTEXT$. This structure seemed 
 
 Each session created inside the ETW framework will have an instance of this structure. At offset $0x70$ there is an attribute called {\bfseries ProviderBinaryList}. After a quick analysis this attribute seemed to held all providers registered against the session in the format of a double linked list. In order to confirm that theory, the process of attaching new providers to an existing session was analyzed. 
 
-The function $nt!EtwpAddProviderToSession$ seemed to be the one creating these links. However due to several reasons (lot of unknown new functions, hard to reverse and more) the analysis was cancelled. %$#####################3Besides the mentioned reasons, there was one main reason that made the previous analysis to be cancelled: The finding of a new and promising structure. ##############
+The function $nt!EtwpAddProviderToSession$ seemed to be the one creating these links. During the analysis several problems were faced: lot of unknown new functions, hard to reverse, no documentation at all, among others. Besides all mentioned issues, there was a key reason that made the previous analysis to be called off: the structure $\_TRACE\_ENABLE\_INFO$.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%  Further analyzing write functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsubsection{\bfseries Further  analyzing write functions}
+\subsubsection{\bfseries Further analyzing write functions}
 
 Usually an structure can have the answer, but if you cannot understand how that structure is being used you won't be able to see that answer. With that in mind, a further analysis over the ETW writes functions was carried out.
 
-$EtwWriteEx$ was one of the most used functions that providers used to write inside sessions and that was the reason why the analysis was focused on it. The provider and the actual event that want to be logged are some of the parameters that this function receives. An interesting piece of its source code can be depicted easily but so no accurate with the following listing: 
+$EtwWriteEx$ was one of the most used functions by providers to write inside events inside sessions. That was the reason why the analysis was focused on it.
+
+The provider and the actual event that wanted to be logged were some of the parameters that $ETWWriteEx$ received. An interesting piece of its source code can be depicted easily as a pseudocode, with the following listing: 
 
 \begin{figure}[H]
   \begin{lstlisting}
+    // First part
     v14 = *(_BYTE *)(ptr_handler + 0x64);
     if(v14){
       v15 = *(_QWORD **)(ptr_handler + 0x20);
@@ -610,6 +611,7 @@ $EtwWriteEx$ was one of the most used functions that providers used to write ins
         EtwpEventWriteFull(...)
       }
     }
+    // Second part
     v14 = *(_BYTE *)(ptr_handler + 0x65); 
     if (v14)}
       v15 = *(_QWORD **)(ptr_handler + 0x28);
@@ -622,16 +624,16 @@ $EtwWriteEx$ was one of the most used functions that providers used to write ins
   \label{fig:etw_write_ex_pseudocode}
 \end{figure}
 
-At first, the two if may seem equal, but they have two key differences: 
+At first, both parts (line 1-7 and 8-14) may seem equal, but they have two key differences: 
 \begin{itemize}
 \setlength\itemsep{0.05em}
   \item The first one is filling {\bfseries v14} using the offset $0x64$, while the second $0x65$
   \item The first one is filling {\bfseries v15} using the offset $0x20$, while the second $0x28$
 \end{itemize}
 
-Going back to figure \ref{fig:regentrylayout}, it is possible to understand that the first part is using the attributes $GuidEntry$ and $EnableMask$ while the second one is using $GroupGuidEntry$ and $GroupEnableMask$. This was key to understand that a provider doesn't always use the same GUID entry.
+Going back to figure \ref{fig:regentrylayout}, it is possible to understand that the first part is using the attributes $GuidEntry$ and $EnableMask$ while the second one is using $GroupGuidEntry$ and $GroupEnableMask$. This was the key to understand that providers don't always use the same GUID entry, but they can also use a "Group GUID".
 
-After an in depth analysis it was found that the function $EtwpLevelKeywordEnabled$ received three parameters: 
+Furthermore, it was found that the function $EtwpLevelKeywordEnabled$ received three parameters: 
 \begin{itemize}
 \setlength\itemsep{0.05em}
   \item $ProviderEnableInfo$ of type $\_TRACE\_ENABLE\_INFO$
@@ -639,10 +641,10 @@ After an in depth analysis it was found that the function $EtwpLevelKeywordEnabl
   \item Event keyword
 \end{itemize}
 
-The main objective of this function was to ensure that this event should be logged by the provider into the session according to the filtering rules defined when the provider was first registered against it. For more information of this, please refer to https://docs.microsoft.com/en-us/message-analyzer/system-etw-provider-event-keyword-level-settings. 
+The main objective of $EtwpLevelKeywordEnabled$ was to check if the event should be logged by the provider into the session according to the filtering rules defined when the provider was first registered against it. For more information, please refer to https://docs.microsoft.com/en-us/message-analyzer/system-etw-provider-event-keyword-level-settings. 
 
 
-In other words, the listing \ref{fig:etw_write_ex_pseudocode} could be translated to "If $EnableMask$ is different from 0x0, check if the event should be logged using the $GuidEntry$. If it should, call $EtwpEventWriteFull$. If $GroupEnableMask$ is different from 0x0, check if the event should be logged using the $GroupEntry$. If it should, call $EtwpEventWriteFull$.
+In other words, listing \ref{fig:etw_write_ex_pseudocode} could be translated to "If $EnableMask$ is different from 0x0, check if the event should be logged using the $GuidEntry$. If it should, call $EtwpEventWriteFull$. If $GroupEnableMask$ is different from 0x0, check if the event should be logged using the $GroupEntry$. If it should, call $EtwpEventWriteFull$.
 
 
 The first parameter received in $EtwpLevelKeywordEnabled$ was of type $\_ENABLE\_TRACE\_INFO$. Analyzing its structure: 
@@ -655,15 +657,17 @@ The first parameter received in $EtwpLevelKeywordEnabled$ was of type $\_ENABLE\
   \end{figure}
 \end{centering}
 
-This structure seemed to be promising as it has information that could relate to a session. Furthermore, we can find this type of structure inside $\_ETW\_GUID\_ENTRY$ at offset $0x50$ and $0x70$. Although this structure seemed to be promising, the answer of how this information was being filled wasn't  inside $ETWWriteEx$. 
+This structure seemed to be promising as it had information that could relate to a session. Furthermore, this structure can be found inside $\_ETW\_GUID\_ENTRY$ at offset $0x50$ and $0x70$. However, the logic which filled or used this structure wasn't present inside $ETWWriteEx$. As shown in \ref{fig:etw_write_ex_pseudocode} after some checks, the function $EtwpEventWriteFull$ was being called. In order to continue with this analysis, it was necessary to analyze this last function. 
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%  Identifying the destination session
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsubsection{\bfseries Identifying the destination session}
-The analysis of this function was the hardest yet the most interest one. Although it receives 17 parameters, has more that 1000 lines of code and helped a lot to understand several things, only a few lines are going to be analyzed here. 
 
-Finally, it turned out that the logic to understand to which session the execution was going to write, was inside this function. The goal of this section is to explain with deep details how this process of choosing the session is carried out. 
+The analysis of $EtwpEventWriteFull$ was the hardest yet the most interest one. Although it received 17 parameters, had more that 1000 lines of code and helped a lot to understand several things, only few lines are going to be analyzed and illustrated here. 
+
+It turned out, as it was supposed, that the logic to understand to which session the execution was going to write was inside this function. The goal of this section is to explain with deep details how this process of choosing the session is carried out. 
 
 To begin with the analysis, let's start analyzing this simplified pseudocode which represents the key part of the process:
 
@@ -683,29 +687,28 @@ To begin with the analysis, let's start analyzing this simplified pseudocode whi
   \label{fig:session_to_write_selection}
 \end{figure}
 
-The {\bfseries 1st} line represents previous definition and statements that are not important for the current explanation. \\
-The {\bfseries 2nd} line represents the cycle that will be executed. In each iteration, it will chose one of the session that the provider is registered against and check if it should write this event to that session.
-Thanks to this analysis, it was found that $enableMask$ it's an 8-bit mask which represents the use of each of the 8 buckets from the $enableInfo$ attribute from the $GuidEntry$. If the first bit (position 0) of $enableMask$ is set to 1, it means that the information inside $enableInfo$[0] should be considered. If its value is 0 the information of $enableInfo$[0] should be dismissed. %This logic remains the same for the rest of the bits inside $enableMask$. 
-This is exactly what is happening in the {\bfseries 3rd} line. It performs a search\footnote{https://docs.microsoft.com/en-us/cpp/intrinsics/bitscanforward-bitscanforward64?view=vs-2019} over the {\bfseries enable\_mask} variable which holds the actual content of the $enableMask$ (or $GroupEnableMask$) attribute from the $GuidRegEntry$, and writes inside $enable\_info\_bucket\_index$ the index of the first bit set to 1. \\
-The {\bfseries 4th} line just shifts a temporary pointer to the $GuidEntry$ by $0x20$ * $enable\_info\_bucket\_index$. $0x20$ is the size of the structure $\_ENABLE\_TRACE\_INFO$ (figure \ref{fig:trace_enable_info} ), which is the type of each $enableInfo$ bucket. In other words, it's shifting the pointer depending on which bucket of $enableInfo$ should be considered in this iteration of the cycle.\\
-The {\bfseries 6th} line is the one that give sense to all the aforementioned steps. It adds $0x76$ to the shifted pointer and checks\footnote{https://docs.microsoft.com/en-us/cpp/intrinsics/bittest-bittest64?view=vs-2019} if the bit at the specified position is 1 or 0. This is basically checking if the $loggerId$  of the corresponding $enableInfo$ has some value. Let's do an example to better understand this: \\
-If the result of the $enable\_info\_bucket\_index$ is equal to 0, means that the least significant bit of $enableMask$ has a $1$. As explained before this means that the $enableInfo$[0] should be considered. Therefore, the following step will be to shift the pointer to $GuidEntry$ by $0x20$ * 0, in other words, it's not shifted. Finally, it checks if the position $0x76$ has something different from 0. $0x76 = 0x70 + 0x6$,  $0x70$ is the offset of the first bucket of $enableInfo$ attribute from the $GuidEntry$, while $0x6$ is the offset of $loggerId$ inside the $\_ENABLE\_INFO\_TRACE$ structure. Now, if the $enable\_info\_bucket\_index$ was 1 instead of 0, the only difference from the previous example is that the pointer to the $guidEntry$ will be shifted $0x20 * 1 = 0x20$. This means that the position to check with $_bittest64$ will be $0x76 + 0x20$. Due to $0x20$ is the size of $\_ENABLE\_INFO\_TRACE$ structure it will access the next bucket's $loggerId$ of $enableInfo$ ($enableInfo$[1])\\
-If the {\bfseries 6th} line condition is accomplished, means that $loggerId$ was 0 and therefore not interesting. Hence, it will jump directly to the next iteration of the cycle. If the condition isn't met, it will continue with the est of the statements.\\
-The {\bfseries 9th} line represents all the operations that are executed once a valid session of the provider was found (like checking if this event should be written to that session, the actual write to the session, etc). 
+The {\bfseries 1st} line represents previous definitions and statements that are not important for the current analysis. \\
+The {\bfseries 2nd} line represents the cycle that will be executed. In each iteration, it will pick one of the sessions that the provider is registered against and check if it should write this event to that session.
+To perform such thing, it was found that the attribute $enableMask$ it's an 8-bit mask which represented the use of each of the 8 buckets from the $enableInfo$ attribute ($GuidEntry$ structure). If the first bit (position 0) of $enableMask$ was set to 1, it meant that the information inside $enableInfo$[0] should be considered. If its value was 0, the information of $enableInfo$[0] should be dismissed. 
+This was exactly what was happening in the {\bfseries 3rd} line. It performed a search\footnote{https://docs.microsoft.com/en-us/cpp/intrinsics/bitscanforward-bitscanforward64?view=vs-2019} over the {\bfseries enable\_mask} variable which held the actual content of the $enableMask$ (or $GroupEnableMask$) attribute from the $GuidRegEntry$, and wrote inside $enable\_info\_bucket\_index$ the index of the first bit set to 1. \\
+The {\bfseries 4th} line shifted a temporary pointer to the $GuidEntry$ by $0x20$ * $enable\_info\_bucket\_index$. $0x20$ was the size of the structure $\_ENABLE\_TRACE\_INFO$ (figure \ref{fig:trace_enable_info} ), which was the type of each $enableInfo$ bucket. In other words, it was shifting the pointer depending on which bucket of $enableInfo$ should be considered in this iteration of the cycle.\\
+The {\bfseries 6th} line was the one that gave sense to all the aforementioned steps. It added $0x76$ to the shifted pointer and checked\footnote{https://docs.microsoft.com/en-us/cpp/intrinsics/bittest-bittest64?view=vs-2019} if the bit at the specified position was 1 or 0. This was basically checking if the $loggerId$ of the corresponding $enableInfo$ had some value. Let's do an example to better understand this: \\
+If the result of the $enable\_info\_bucket\_index$ was equal to 0, it meant that the least significant bit of $enableMask$ had a $1$. As explained before, this meant that the $enableInfo$[0] should be considered. Therefore, the following step would be to shift the pointer to $GuidEntry$ by $0x20$ * 0, in other words, don't shift it. Finally, it checked if the position $0x76$ had something different from 0. $0x76 = 0x70 + 0x6$,  $0x70$ was the offset of the first bucket of $enableInfo$ attribute from the $GuidEntry$, while $0x6$ was the offset of $loggerId$ inside the $\_ENABLE\_INFO\_TRACE$ structure. Now, if the $enable\_info\_bucket\_index$ was 1 instead of 0, the only difference from the previous example would have been that the pointer to the $guidEntry$ would be shifted $0x20 * 1 = 0x20$. This meant that the position to check with $_bittest64$ would have been $0x76 + 0x20$. Due to $0x20$ was the size of $\_ENABLE\_INFO\_TRACE$ structure it would have accessed the next bucket's $loggerId$ of $enableInfo$ ($enableInfo$[1])\\
+If the {\bfseries 6th} line condition was accomplished, meant that $loggerId$ was 0 and therefore not interesting. Hence, it would have jumped directly to the next iteration of the cycle. If the condition wasn't met, it would have continued with the rest of the statements.\\
+The {\bfseries 9th} line represented all operations that were executed once a valid session of the provider was found (like checking if this event should be written to that session, the actual write to the session, etc). 
 
-
-The $loggerId$ finally became the way to relate the a write execution with the destination session. Recalling the structure which represents an ETW session ($\_WMI\_LOGGER\_CONTEXT$, figure \ref{fig:wmi_logger_context}) the first of its attributes was the $loggerId$, an identification for the session. Although, until this point it was unknown the exact moment when the event was written, this logic was enough to understand how the session was chosen. 
+The $loggerId$ finally became the way to relate a write execution with the destination session. Recalling the structure which represented an ETW session ($\_WMI\_LOGGER\_CONTEXT$, figure \ref{fig:wmi_logger_context}) the first of its attributes was the $loggerId$, an identification for the session. Although, until this point it was unknown the exact moment when the event was written, this logic was enough to understand how the session was chosen. 
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%  Exact writing moment
+%%%%  Detecting what's going to be written
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsubsection{\bfseries Exact writing moment}
-Although the last analysis was key to understand how the destination session was chosen, it was necessary to find the exact moment when $EtwpAllocGuidEntry$ was actually writing the event to that session. After all, that was our main goal. 
+\subsection{\bfseries Detecting what is going to be written}
+Although the last analysis was key to understand how the destination session was chosen, it was necessary to find the exact moment when $EtwpAllocGuidEntry$ was actually writing the event to that session. After all, that was the main goal. 
 
 
-As shown in listing \ref{fig:session_to_write_selection}, {\bfseries 9th} line involved a lot of further processing once a candidate session was found. Among all that processing, it's possible to find the following lines: 
+As shown in listing \ref{fig:session_to_write_selection}, {\bfseries 9th} line involved a lot of further processing once a candidate session was found. Among all that processing, it was possible to find the following lines: 
 
 \begin{figure}[H]
   \begin{lstlisting}
@@ -740,27 +743,23 @@ As shown in listing \ref{fig:session_to_write_selection}, {\bfseries 9th} line i
   \label{fig:exact_moment_of_writing_to_session}
 \end{figure}
 
-The {\bfseries 1st} line represents previous definition and statements (like the whole listing \ref{fig:session_to_write_selection}) that are not important for the current explanation. \\
-The {\bfseries 2nd} line assigns the $loggerId$ value of the selected session to a variable. For the sake of clarity, this variable will be called $logger\_id$.\\
-The {\bfseries 3rd} line represents definitions and statements that are not important for this explanation.\\
-The {\bfseries 4th} line performs asks if the $logger\_id >= 0x40$. In case it does, it assigns weird values to a supposed pointer. The reason to do it, is because the maximum number of ETW sessions that can exists is 64 ($0x40$). In other words, it is ensuring that the $logger\_id$ is valid. \\
-In case $logger\_id$ is valid, lines {\bfseries 9} and {\bfseries 10} are executed. The former one, assigns the value of $ptr\_silo\_state$ (variable defined before but whose content could be inferred from its name) $+ 8 * logger\_id + 0x390$. What does all these values mean? 
-At offset $0x390$ of the structure $\_ETW\_SILODRIVERSTATE$ (figure \ref{fig:etwsilodriverstate_structure}) these is an attribute called $WmipLoggerContext$. This attribute is an array of pointers ($Ptr64$) to structures of type $\_WMI\_LOGGER\_CONTEXT$ (figure \ref{fig:wmi_logger_context}). This array has 64 buckets (again, because of the maximum number of sessions possible) and its index in this array matches with their $loggerId$ value. Definitely, this is not coincidence. When adding a new ETW session, the free bucket of this $WmipLoggerContext$ is used and therefore its index within this array is used to fulfill the value of $loggerId$. Finally, $8$ is the length of a $Ptr64$ structure. \\
+The {\bfseries 1st} line represented previous definitions and statements (like the whole listing \ref{fig:session_to_write_selection}) that were not important for the current analysis. \\
+The {\bfseries 2nd} line assigned the $loggerId$ value of the selected session to a variable. For the sake of clarity, this variable was called $logger\_id$.\\
+The {\bfseries 3rd} line represented definitions and statements that were not important for this analysis.\\
+The {\bfseries 4th} line asked if $logger\_id >= 0x40$. In case it did, it assigned weird values to a supposed pointer. The reason to do it, was because the maximum number of ETW sessions that could exists was 64 ($0x40$). In other words, it was ensuring that $logger\_id$ had a valid value. \\
+In case $logger\_id$ was valid, lines {\bfseries 9} and {\bfseries 10} were executed. The former one, assigned the value of $ptr\_silo\_state$ (variable defined before but whose content could be inferred from its name) $+ 8 * logger\_id + 0x390$. What did all these values mean? 
+At offset $0x390$ of the structure $\_ETW\_SILODRIVERSTATE$ (figure \ref{fig:etwsilodriverstate_structure}) there was an attribute called $WmipLoggerContext$. This attribute was an array of pointers ($Ptr64$) to structures of type $\_WMI\_LOGGER\_CONTEXT$ (figure \ref{fig:wmi_logger_context}). This array had 64 buckets (again, because of the maximum number of sessions possible) and its index in this array matcheed with their $loggerId$ value. Definitely, this was not coincidence. When adding a new ETW session, the free bucket of this $WmipLoggerContext$ is used and therefore its index within this array is used to fulfill the value of $loggerId$. Finally, $8$ was the length of a $Ptr64$ structure. \\
 As a conclusion, the value of $ptr\_wmi\_trace\_of\_session$ as the name suggests, will be the pointer to the corresponding $\_WMI\_LOGGER\_CONTEXT$ of the session associated with the $logger\_id$ found. 
+The {\bfseries 12th} line represented definitions and statements that were not important for this analysis.\\
+The {\bfseries 13th} line represented a call to the most interesting function of this analysis: $EtwpReserveTraceBuffer$. This function received parameters such as the pointer to the associated session's $\_WMI\_LOGGER\_CONTEXT$ and the size of the event to write. This function returned a pointer to the place (within the buffers of the ETW session) where the event data (and metadata) should be written afterwards. 
+The {\bfseries 20th} line only checked if the pointer was different from null (in case the OS ran out of memory). 
+The {\bfseries 21th}, {\bfseries 22th} and {\bfseries 23th} lines represent the exact moment when all the data is being written inside the memory block returned by $EtwpReserveTraceBuffer$.
+The {\bfseries 25th} represented statements that would have been executed in case the condition line {\bfseries 20} wasn't accomplished.
+
+As a summary, it is possible to ensure that line {\bfseries 21} represented the first moment were the event data (and metadata) was being written to the session's buffers.
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+\section{\bfseries Automating the analysis}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -770,10 +769,6 @@ As a conclusion, the value of $ptr\_wmi\_trace\_of\_session$ as the name suggest
 \newpage
 {\huge 1. We couldn't ensure that the data was being written was actually going to the DiagTrack session .}
 
-\section{When and how providers are registered}
-\section{How writes are carried out}
-\section{Relation between ETW session and ETW providers}
-\section{Identifying the buffers}
 \section{Provider GUID vs Group Provider GUID}
 \section{Checking correctness of logged events}
 \section{Automatization of event logging}
