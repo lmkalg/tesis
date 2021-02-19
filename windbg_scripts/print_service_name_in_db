@@ -1,0 +1,3 @@
+$$ This script will print all and each service of the database
+.printf "%mu\n", @rcx
+gc

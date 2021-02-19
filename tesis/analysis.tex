@@ -1,5 +1,5 @@
 The main objective was always the analysis of Telemetry. The best and most accurate option to study this component would have been to analyze it source code. Unluckily this isn't possible as the Windows kernel is not open source. However, it was still possible to reverse engineer the Windows kernel to understand how Telemetry works. 
-Several files (dynamic libraries, executables, drivers) had to be reversed and analyzed. Nonetheless, there was one file that had the main focus: {\bfseries ntoskrnl.exe}. This binary holds the actual implementation of the Windows Kernel.
+Several files (dynamic libraries, executables, drivers) had to be reversed and analyzed. Nonetheless, there was one file that had the main focus: {\bfseries ntoskrnl.exe}. This binary held the actual implementation of the Windows Kernel.
 
 Following sections will depict different challenges and achievements faced during the analysis of this and the other binaries.
 
@@ -11,7 +11,7 @@ Following sections will depict different challenges and achievements faced durin
 
 \section{Understanding how Telemetry makes use of ETW}\label{understanding_telemetry_etw}
 
-When Windows OS boots, multiple sessions are created inside ETW. Among them there is one related to Telemetry: DiagTrack. As explained in \ref{ETW}, every session has "providers": those entities that actually provide information to the session. In order to understand how Telemetry works with ETW, it was important to learn about DiagTrack's session providers. To help us the following questions wanted to be answered:
+When Windows OS boots, multiple sessions are created inside ETW. Among them there is one related to Telemetry: DiagTrack. As explained in \ref{ETW}, every session has "providers" -those entities that actually provide information to the session-. In order to understand how Telemetry made use of ETW, it was important to learn about DiagTrack's session providers. At this point, the answers for the following questions were unknown:
 \begin{enumerate}
 \setlength\itemsep{0.05em}
 \item Who are they?
@@ -37,23 +37,21 @@ For each provider registered to the queried session, the following information i
   \item TO\_CHECK
 \end{itemize}
 
-With this list the question {\bfseries Who are they?} seems to be answered. However, two questions are still missing to answer.
+With this list, the question {\bfseries Who are they?} seemed to be answered. Still, two questions remained.
 
-At this point and idea came up: To answer {\bfseries Where are they running?} and {\bfseries What are they logging?} it could be useful to hook into the exact moment when any of those providers are going to write to the DiagTrack's session. 
+At that point, an interesting idea came up: To answer {\bfseries Where are they running?} and {\bfseries What are they logging?} it could be useful to hook into the exact moment when any of those providers are going to write to the DiagTrack's session. 
 In other words, it could be useful to set a breakpoint in the function that performs the write to the DiagTrack's session. Once the breakpoint is hit, the following information could be extracted:
 
 \begin{enumerate}
 \setlength\itemsep{0.05em}
-\item The piece of code that triggered the write (by inspecting the function's call stack). In other words, identify who is writing. 
+\item The piece of code that triggered the write (by inspecting the function's call stack). In other words, identify who was writing. 
 \item The actual content of the log being written.
 \end{enumerate} 
 
-That was when debugging (\ref{debugging}) came into play. Analyzing the symbols exposed by the ntoskrnl binary, the function {\bfseries EtwWrite} was found. This function seemed to be one in charge of carrying out the writes of providers inside sessions. Nonetheless, it wasn't worth to set a breakpoint at this function as every provider of the system (not necessarily related to DiagTrack) could use it. 
+That was when debugging (\ref{debugging}) came into play. Analyzing the symbols exposed by the ntoskrnl binary, the function {\bfseries EtwWrite} was found. This function seemed to be the one in charge of carrying out the process of writing inside sessions. Nonetheless, it wasn't worth to set a breakpoint at this function as every provider of the system (not necessarily related to DiagTrack) could use it. 
 It was necessary to find a way of only detecting the writes performed by DiagTrack's providers. 
 
-Let's recall the powershell command (\ref{fig:powershell_cmd}). This command will return you information for each registered provider. Part of that information was the GUID. 
-
-The objective was to filter writes only from providers that were registered against the DiagTrack Session. To do so the idea was to set a conditional breakpoint inside function {\bfseries EtwWrite} and try to check if the GUID provided was of interest.
+The powershell command (\ref{fig:powershell_cmd}) returned information for each registered provider. Part of that information was the GUID. Due to the previous objective was to filter writes only from providers that were registered against the DiagTrack Session, it could be useful to set a conditional breakpoint inside function {\bfseries EtwWrite} and try to check if the GUID provided was of interest. 
 
 Unfortunately, this strategy had one minor issue. The function ({\bfseries EtwWrite}) had five parameters and none of them would show directly the GUID:
 
@@ -63,17 +61,15 @@ Unfortunately, this strategy had one minor issue. The function ({\bfseries EtwWr
   \label{fig:etw_write_docu}
 \end{figure}
 
-The first parameter is the registration handler. This object is returned once the provider executed the registration ({\bfseries EtwRegister)} successfully.
-However, taking a look to {\bfseries EtwRegister} it is possible to observe that it receives the GUID as parameter:
+The first parameter was the registration handler. This object was returned once the provider executed the registration ({\bfseries EtwRegister)} successfully.
+Taking a deeper look to {\bfseries EtwRegister} it was possible to observe that it received the GUID as parameter:
 \begin{figure}[H]
   \includegraphics[width=\linewidth]{images/etw_register_docu.png}
   \caption[]{Documentation for EtwRegister function \footnote{https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/content/wdm/nf-wdm-etwregister}.}
   \label{fig:etw_register_docu}
 \end{figure}
 
-This finding basically meant that having only one breakpoint in {\bfseries EtwWrite} wasn't going to be enough as information from {\bfseries EtwRegister} was also needed.
-
-In other words, to understand if the write was being done by a provider registered against the DiagTrack session it was necessary to: 
+This finding basically meant that having only one breakpoint in {\bfseries EtwWrite} wasn't going to be enough as information from {\bfseries EtwRegister} was also needed.In other words, to understand if the write was being done by a provider registered against the DiagTrack session it was necessary to: 
 \begin{enumerate}
 \setlength\itemsep{0.05em}
     \item Extract the whole list of providers registered against the DiagTrack session.
@@ -180,9 +176,9 @@ return v20;
   After analyzing  {\bfseries EtwpRegisterProvider} it was possible to conclude that:
   \begin{enumerate}
 \setlength\itemsep{0.05em}
-  \item {\bfseries a1}: Is the pointer to a structure.
-  \item {\bfseries a2}: Is the pointer to the GUID structure. 
-  \item {\bfseries a7}: Is the address where the pointer to the registration handler will be placed (can be think as "function output").
+  \item {\bfseries a1}: Was the pointer to a structure.
+  \item {\bfseries a2}: Was the pointer to the GUID structure. 
+  \item {\bfseries a7}: Was the address where the pointer to the registration handler would be placed (can be think as "function output").
   \end{enumerate}
 
   What is this {\bfseries a1} structure?
@@ -196,7 +192,7 @@ return v20;
   \end{figure}
   \end{centering}
 
-  However, the first parameter provided to {\bfseries EtwpRegisterProvider} is not the pointer to $S$ but is the pointer to another structure $S_2$ of type {\bfseries \_ETW\_SILODRIVERSTATE}. which is part of $S$, more precisely, it is situated at offset 0x350. 
+  However, the first parameter provided to {\bfseries EtwpRegisterProvider} was not the pointer to $S$ but the pointer to another structure $S_2$ of type {\bfseries \_ETW\_SILODRIVERSTATE} which happens to be part of $S$, situated at offset 0x350. 
 
   \begin{centering}
   \begin{figure}[H]
@@ -228,7 +224,7 @@ return v20;
 
   \subsubsection{\bfseries{2. Check if GUID for this provider already exists}}
  
-  In this part, the focus will be on understanding how the process of recovering the already existing "GUID entry" works.
+  This part will be focused on understanding how the process of recovering the already existing "GUID entry" works.
 
   The action of recovering is performed by a particular function called {\bfseries EtwpFindGuidEntryByGuid}:
 
@@ -236,7 +232,7 @@ return v20;
   ptr_guid_entry = (char *)EtwpFindGuidEntryByGuid(etw_silo, ptr_guid, 0);
   \end{verbatim}
 
-  As can be inferred from the previous line, two important parameters are provided: the {\bfseries ETWSILODRIVERSTATE}(a1) structure $S$ and the pointer to the GUID $ptr\_guid$.
+  As can be inferred from the previous line, two important parameters were provided: the {\bfseries ETWSILODRIVERSTATE}(a1) structure $S$ and the pointer to the GUID $ptr\_guid$.
 
   \begin{centering}
   \begin{figure}[H]
@@ -252,7 +248,7 @@ return v20;
 
   Just before the $add$ function, $eax$ is filled with the content of the address $rdx+8$. $rdx$ held the $ptr\_guid$, meaning that $eax$ will have the third group of 4 bytes inside of the guid structure. Why the third? Because the offset was 8. Why 4 bytes? Because the register $eax$ (32 bits) was used.
 
-  In the following lines, the value of $eax$ is being constantly modified by xoring it successively with the different group of 4 bytes that compose the guid structure\footnote{Sometimes the structures weren't documented at all. Sometimes they were, but was not possible to find it until some kind of clue pointing to it was found.  So far the layout of the structure pointed by $ptr\_guid$ was unknown, however from this function it was possible to conclude that the structure had a size of 16 bytes.}. After performing these successive xor operations, a boolean and is applied against $eax$ (result of xoring) using a mask of $0x3f$. This mask will set all $eax$ bits to 0 with the exception of the last 6 that will remain having its actual value. The reason to do this is because $2^6 = 64$. In other words, this mask is making the xoring result fit into the range of a valid bucket index. Afterwards, multiplies the result against $0x38$ (size of $\_ETW\_HASH\_BUCKET$ structure). Finally, the value of $rax$($eax$) is added to $rcx$ which had the pointer to the $EtwpGuidHashTable$ structure. 
+  In the following lines, the value of $eax$ is being constantly modified by xoring it successively with the different group of 4 bytes that compose the guid structure\footnote{Sometimes the structures weren't documented at all. Sometimes they were, but was not possible to find it until some kind of clue pointing to it was found.  So far the layout of the structure pointed by $ptr\_guid$ was unknown, however from this function it was possible to conclude that the structure had a size of 16 bytes.}. After performing these successive xor operations, a boolean-and is applied against $eax$ (result of xoring) using a mask of $0x3f$. This mask will set all $eax$ bits to 0 with the exception of the last 6 that will remain having its actual value. The reason to do this is because $2^6 = 64$. In other words, this mask is making the xoring result fit into the range of a valid bucket index. Afterwards, multiplies the result against $0x38$ (size of $\_ETW\_HASH\_BUCKET$ structure). Finally, the value of $rax$($eax$) is added to $rcx$ which had the pointer to the $EtwpGuidHashTable$ structure. 
 
   Writing the aforementioned function in a pseudo-code style ($ptr$ is a short version of "pointer"): 
   \begin{verbatim}
@@ -557,9 +553,9 @@ Following sections will detail the process to find an answer to these problems.
 \subsubsection{\bfseries Inspecting ETW structures}
 So far it happened a lot that ETW structures were the key to overcome different obstacles. We wanted to know if this was again the case. 
 
-The first structure analyzed was $\_ETW\_REG\_ENTRY$ (figure \ref{fig:regentrylayout}) as it would have been the most direct and easier way to relate session and provider. Unfortunately, none of its components was helpful.
+The first structure analyzed was $\_ETW\_REG\_ENTRY$ (figure \ref{fig:regentrylayout}) as it would have been the most direct and easier way to relate session and provider. Unfortunately, none of its components were helpful.
 
-The next structure analyzed was $\_WMI\_LOGGER\_CONTEXT$. This structure seemed to be the representation of an ETW session. Due to the size of this structure only the necessary and representative offsets are depicted: 
+The next structure analyzed was $\_WMI\_LOGGER\_CONTEXT$. This structure seemed to be the actual representation of an ETW session. Due to its size, only  necessary and representative offsets are depicted: 
 
 \begin{figure}[H]
   \begin{lstlisting}
@@ -585,15 +581,17 @@ The next structure analyzed was $\_WMI\_LOGGER\_CONTEXT$. This structure seemed 
   \label{fig:wmi_logger_context}
 \end{figure}
 
-Each session created inside the ETW framework will have an instance of this structure. At offset $0x70$ there is an attribute called {\bfseries ProviderBinaryList}. After a quick analysis this attribute seemed to held all providers registered against the session in the format of a double linked list. In order to confirm that theory, the process of attaching new providers to an existing session was analyzed. 
+Each ETW session will have an instance of this structure. At offset $0x70$ there is an attribute called {\bfseries ProviderBinaryList}. After a quick analysis this attribute seemed to held all providers registered against the session in the format of a double linked list. In order to confirm that theory, the process of attaching new providers to an existing session was analyzed. 
 
 The function $nt!EtwpAddProviderToSession$ seemed to be the one creating these links. During the analysis several problems were faced: lot of unknown new functions, hard to reverse, no documentation at all, among others. Besides all mentioned issues, there was a key reason that made the previous analysis to be called off: the structure $\_TRACE\_ENABLE\_INFO$.
 
 
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%  Further analyzing write functions
+%%%%  GUID and Group GUID
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsubsection{\bfseries Further analyzing write functions}
+\subsubsection{\bfseries Provider GUID and Provider Group GUID}
 
 Usually an structure can have the answer, but if you cannot understand how that structure is being used you won't be able to see that answer. With that in mind, a further analysis over the ETW writes functions was carried out.
 
@@ -660,6 +658,8 @@ The first parameter received in $EtwpLevelKeywordEnabled$ was of type $\_ENABLE\
 This structure seemed to be promising as it had information that could relate to a session. Furthermore, this structure can be found inside $\_ETW\_GUID\_ENTRY$ at offset $0x50$ and $0x70$. However, the logic which filled or used this structure wasn't present inside $ETWWriteEx$. As shown in \ref{fig:etw_write_ex_pseudocode} after some checks, the function $EtwpEventWriteFull$ was being called. In order to continue with this analysis, it was necessary to analyze this last function. 
 
 
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%  Identifying the destination session
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -690,14 +690,17 @@ To begin with the analysis, let's start analyzing this simplified pseudocode whi
 The {\bfseries 1st} line represents previous definitions and statements that are not important for the current analysis. \\
 The {\bfseries 2nd} line represents the cycle that will be executed. In each iteration, it will pick one of the sessions that the provider is registered against and check if it should write this event to that session.
 To perform such thing, it was found that the attribute $enableMask$ it's an 8-bit mask which represented the use of each of the 8 buckets from the $enableInfo$ attribute ($GuidEntry$ structure). If the first bit (position 0) of $enableMask$ was set to 1, it meant that the information inside $enableInfo$[0] should be considered. If its value was 0, the information of $enableInfo$[0] should be dismissed. 
-This was exactly what was happening in the {\bfseries 3rd} line. It performed a search\footnote{https://docs.microsoft.com/en-us/cpp/intrinsics/bitscanforward-bitscanforward64?view=vs-2019} over the {\bfseries enable\_mask} variable which held the actual content of the $enableMask$ (or $GroupEnableMask$) attribute from the $GuidRegEntry$, and wrote inside $enable\_info\_bucket\_index$ the index of the first bit set to 1. \\
-The {\bfseries 4th} line shifted a temporary pointer to the $GuidEntry$ by $0x20$ * $enable\_info\_bucket\_index$. $0x20$ was the size of the structure $\_ENABLE\_TRACE\_INFO$ (figure \ref{fig:trace_enable_info} ), which was the type of each $enableInfo$ bucket. In other words, it was shifting the pointer depending on which bucket of $enableInfo$ should be considered in this iteration of the cycle.\\
+This was exactly what was happening in the {\bfseries 3rd} line. It performed a search\footnote{https://docs.microsoft.com/en-us/cpp/intrinsics/bitscanforward-bitscanforward64?view=vs-2019} over the {\bfseries enable\_mask} variable which held the actual content of the $enableMask$ attribute from the $GuidRegEntry$, and wrote inside $enable\_info\_bucket\_index$ the index of the first bit set to 1. \\
+The {\bfseries 4th} line shifted a temporary pointer to the $GuidEntry$ by $0x20$ * $enable\_info\_bucket\_index$. In this case, $0x20$ was the size of the structure $\_ENABLE\_TRACE\_INFO$ (figure \ref{fig:trace_enable_info} ), which was the type of each $enableInfo$ bucket. In other words, it was shifting the pointer depending on which bucket of $enableInfo$ should be considered in this iteration of the cycle.\\
 The {\bfseries 6th} line was the one that gave sense to all the aforementioned steps. It added $0x76$ to the shifted pointer and checked\footnote{https://docs.microsoft.com/en-us/cpp/intrinsics/bittest-bittest64?view=vs-2019} if the bit at the specified position was 1 or 0. This was basically checking if the $loggerId$ of the corresponding $enableInfo$ had some value. Let's do an example to better understand this: \\
 If the result of the $enable\_info\_bucket\_index$ was equal to 0, it meant that the least significant bit of $enableMask$ had a $1$. As explained before, this meant that the $enableInfo$[0] should be considered. Therefore, the following step would be to shift the pointer to $GuidEntry$ by $0x20$ * 0, in other words, don't shift it. Finally, it checked if the position $0x76$ had something different from 0. $0x76 = 0x70 + 0x6$,  $0x70$ was the offset of the first bucket of $enableInfo$ attribute from the $GuidEntry$, while $0x6$ was the offset of $loggerId$ inside the $\_ENABLE\_INFO\_TRACE$ structure. Now, if the $enable\_info\_bucket\_index$ was 1 instead of 0, the only difference from the previous example would have been that the pointer to the $guidEntry$ would be shifted $0x20 * 1 = 0x20$. This meant that the position to check with $_bittest64$ would have been $0x76 + 0x20$. Due to $0x20$ was the size of $\_ENABLE\_INFO\_TRACE$ structure it would have accessed the next bucket's $loggerId$ of $enableInfo$ ($enableInfo$[1])\\
 If the {\bfseries 6th} line condition was accomplished, meant that $loggerId$ was 0 and therefore not interesting. Hence, it would have jumped directly to the next iteration of the cycle. If the condition wasn't met, it would have continued with the rest of the statements.\\
 The {\bfseries 9th} line represented all operations that were executed once a valid session of the provider was found (like checking if this event should be written to that session, the actual write to the session, etc). 
 
-The $loggerId$ finally became the way to relate a write execution with the destination session. Recalling the structure which represented an ETW session ($\_WMI\_LOGGER\_CONTEXT$, figure \ref{fig:wmi_logger_context}) the first of its attributes was the $loggerId$, an identification for the session. Although, until this point it was unknown the exact moment when the event was written, this logic was enough to understand how the session was chosen. 
+The $loggerId$ finally became the way to relate a write execution with the destination session. Recalling the structure which represented an ETW session\\ ($\_WMI\_LOGGER\_CONTEXT$, figure \ref{fig:wmi_logger_context}) the first of its attributes was the $loggerId$, an identification for the session. Although, until this point it was unknown the exact moment when the event was written, this logic was enough to understand how the session was chosen. 
+
+
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -749,17 +752,251 @@ The {\bfseries 3rd} line represented definitions and statements that were not im
 The {\bfseries 4th} line asked if $logger\_id >= 0x40$. In case it did, it assigned weird values to a supposed pointer. The reason to do it, was because the maximum number of ETW sessions that could exists was 64 ($0x40$). In other words, it was ensuring that $logger\_id$ had a valid value. \\
 In case $logger\_id$ was valid, lines {\bfseries 9} and {\bfseries 10} were executed. The former one, assigned the value of $ptr\_silo\_state$ (variable defined before but whose content could be inferred from its name) $+ 8 * logger\_id + 0x390$. What did all these values mean? 
 At offset $0x390$ of the structure $\_ETW\_SILODRIVERSTATE$ (figure \ref{fig:etwsilodriverstate_structure}) there was an attribute called $WmipLoggerContext$. This attribute was an array of pointers ($Ptr64$) to structures of type $\_WMI\_LOGGER\_CONTEXT$ (figure \ref{fig:wmi_logger_context}). This array had 64 buckets (again, because of the maximum number of sessions possible) and its index in this array matcheed with their $loggerId$ value. Definitely, this was not coincidence. When adding a new ETW session, the free bucket of this $WmipLoggerContext$ is used and therefore its index within this array is used to fulfill the value of $loggerId$. Finally, $8$ was the length of a $Ptr64$ structure. \\
-As a conclusion, the value of $ptr\_wmi\_trace\_of\_session$ as the name suggests, will be the pointer to the corresponding $\_WMI\_LOGGER\_CONTEXT$ of the session associated with the $logger\_id$ found. 
+As a conclusion, the value of $ptr\_wmi\_trace\_of\_session$ as the name suggests, will be the pointer to the corresponding $\_WMI\_LOGGER\_CONTEXT$ of the session associated with the $logger\_id$ found. \\
 The {\bfseries 12th} line represented definitions and statements that were not important for this analysis.\\
-The {\bfseries 13th} line represented a call to the most interesting function of this analysis: $EtwpReserveTraceBuffer$. This function received parameters such as the pointer to the associated session's $\_WMI\_LOGGER\_CONTEXT$ and the size of the event to write. This function returned a pointer to the place (within the buffers of the ETW session) where the event data (and metadata) should be written afterwards. 
-The {\bfseries 20th} line only checked if the pointer was different from null (in case the OS ran out of memory). 
-The {\bfseries 21th}, {\bfseries 22th} and {\bfseries 23th} lines represent the exact moment when all the data is being written inside the memory block returned by $EtwpReserveTraceBuffer$.
-The {\bfseries 25th} represented statements that would have been executed in case the condition line {\bfseries 20} wasn't accomplished.
+The {\bfseries 13th} line represented a call to the most interesting function of this analysis:\\
+$EtwpReserveTraceBuffer$. This function received parameters such as the pointer to the associated session's $\_WMI\_LOGGER\_CONTEXT$ and the size of the event to write. This function returned a pointer to the place (within the buffers of the ETW session) where the event data (and metadata) should be written afterwards (full analysis on the following section). \\
+The {\bfseries 20th} line only checked if the pointer was different from null (in case the OS ran out of memory). \\
+The {\bfseries 21th}, {\bfseries 22th} and {\bfseries 23th} lines represent the exact moment when all the data is being written inside the memory block returned by $EtwpReserveTraceBuffer$.\\
+The {\bfseries 25th} represented statements that would have been executed in case the condition line {\bfseries 20} wasn't accomplished.\\
 
 As a summary, it is possible to ensure that line {\bfseries 21} represented the first moment were the event data (and metadata) was being written to the session's buffers.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Ensure they are DiagTrack events %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Despite the fact the previous analysis seemed to be correct, it was necessary to confirm that all data being logged to the ETW buffers, was the expected one. 
+It was possible to force the system to log an event to the DiagTrack session (MORE IN TRIGGERS SECTION). Therefore, the following strategy was followed in order to confirm that all the findings were correct:
+\begin{enumerate}
+\setlength\itemsep{0.05em}
+\item Get the logger id of the DiagTrack session.
+\item Set a breakpoint few instructions before the actual writing, taking into account the logger id.
+\item Once hit, print the event descriptor and the amount of events in the DiagTrack's buffer.
+\item Set a new breakpoint few instruction after the writing. 
+\item Print the event descriptor again and compare it against previous value. 
+\item Print the event content to ensure everything is working as expected
+\end{enumerate}
 
-\section{\bfseries Automating the analysis}
+A breakpoint was set few instructions before calling the $EtwpReserveTraceBuffer$ function, which meant that the event wouldn't be written yet. Once the debugger got that point, the event descriptor was printed in order to have something to compare with afterwards: 
+
+\begin{figure}[H]
+  \begin{lstlisting}
+   !wmitrace.strdump
+   bp nt!EtwpEventWriteFull+0x286 ".if(r12d == 0x22){.echo 'YEP! it entered';.ech ''}.else{gc};gc;"
+   g
+   dt nt!_EVENT_DESCRIPTOR @r13
+  \end{lstlisting} 
+  \caption[]{Steps 1, 2 and 3.}
+  \label{fig:powershell_cmd}
+\end{figure}
+
+
+At that point, $0x22$ was the logger id of the DiagTrack session. After printing the event descriptor, the second part was executed:
+
+\begin{figure}[H]
+\begin{lstlisting}  
+  bp nt!EtwpEventWriteFull+0x3c1
+  g
+  dt nt!_EVENT_DESCRIPTOR @r13
+  !wmitrace.eventlogdump 0x22
+\end{lstlisting} 
+\caption[]{Steps 4,5 and 6.}
+\label{fig:powershell_cmd}
+\end{figure}
+
+The new breakpoint (few instructions after writing) was hit. The event descriptor was exactly as before and the log content had the expected information. 
+After this tests, it was possible to conclude that the analysis performed earlier was correct.
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%    Automation            %%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{\bfseries Automation}
+Although a big part of all the previous analysis was carried out using static analysis, dynamic analysis also played a central role on it. Furthermore, the final goal of the research was always to have a automatic framework capable of monitor every log of the DragTrack session in real time. 
+
+The following sections will show every Windbg script developed in order to overcome particular situations. Definitely there were several intermediate version of each script, but for the sake of simplicity only final version will be shown.  
+
+
+\subsection{\bfseries Automating DiagTrack logger id search}
+One of the very first things that needed to be automated was the search for the logger id of the DiagTrack session. This value is key for the whole process due to is the one which ensures always that the DiagTrack session is the one being processed and not any other session. 
+
+The first mission was to try to find in which moment this value was defined for each ETW session. By inspecting the symbols of ntoskrnl.exe the function $EtwpLookupLoggerIdByName$ appeared and because of its name was the first candidate. In order to confirm that this was a good candidate, we start reversing it and debugging it.  
+
+
+\begin{figure}[H]
+  \begin{lstlisting}
+    
+__int64 __fastcall EtwpLookupLoggerIdByName(__int64 ptr_silo_globals, const UNICODE_STRING *logger_name, unsigned int *addr_of_logger_id)
+{
+  unsigned int *logger_id_to_ret; // r14
+  const UNICODE_STRING *logger_name_cpy; // r15
+  __int64 ptr_silo_globals_cpy; // rbp
+  unsigned int v6; // esi
+  unsigned int logger_id_iterator; // ebx
+  unsigned int *logger_context; // rax
+  unsigned int *logger_context_cpy; // rdi
+
+  logger_id_to_ret = addr_of_logger_id;
+  logger_name_cpy = logger_name;
+  v6 = 0xC0000296
+  ptr_silo_globals_cpy = ptr_silo_globals;
+  logger_id_iterator = 0;
+  while ( 1 )                                   // Iterating all loggers
+  {
+    logger_context = EtwpAcquireLoggerContextByLoggerId(ptr_silo_globals_cpy, logger_id_iterator, 0);
+    if ( logger_context )
+      break;
+LABEL_3:
+    if ( ++logger_id_iterator >= 0x40 )         // break conditions (there can't be morethat 64 sessions)
+      return v6;
+  }
+  [...]
+
+  EtwpReleaseLoggerContext(logger_context_cpy, 0);
+  v6 = 0;
+  *logger_id_to_ret = logger_id_iterator;
+  return v6;
+
+  \end{lstlisting} 
+  \caption[]{Pseudocode snippet of $EtwpLookupLoggerIdByName$.}
+  \label{fig:logger_id_by_name}
+\end{figure}
+
+From it's code it was possible to understand that: 
+\begin{enumerate}
+  \setlength\itemsep{0.05em}
+  \item The first parameter ($rcx$) is the pointer to the {\bfseries \_ETW\_SILODRIVERSTATE} structure (figure \ref{fig:etwsilodriverstate_structure}), the second one ($rdx$) a pointer to a unicode string (probably the name logger name) and the third one seems to be just a buffer where the logger id for this new will be placed. 
+  \item There is an iterator which represents the logger id number, that will go from 0 up to 0x40 (64). This iterator won't be able to go further than 0x40 because is the maximum amount of sessions that can be held inside the ETW framework at the same time. 
+  \item As a summary, this function seems to be the one that actually maps a logger name against a logger id and registers this relation inside the {\bfseries \_ETW\_SILODRIVERSTATE} structure. 
+\end{enumerate}
+  
+To help validating this information, we proceed to perform a dynamic analysis. Most probably, the call to this function was going to happen during (or right after) the operating system was booting. In order to confirm this idea, a breakpoint at function $EtwpLookupLoggerIdByName$ was set and the debugee system was turned on: 
+
+\begin{lstlisting}
+bp nt!EtwpLookupLoggerIdByName
+\end{lstlisting}
+
+After a couple of seconds the breakpoint was hit. To confirm the aforementioned statements, two commands were issued: 
+
+\begin{figure}[H]
+  \includegraphics[width=11cm]{images/automation/loggerid/kc_and_rdx.png}
+  \caption[]{Execution of two Windbg commands when breakpoint of $EtwpLookupLoggerIdByName$ was hit. }
+  \label{fig:logger_id_kc_ds}
+\end{figure}
+The first one was {\bfseries kc}. This prints out the call stack of the function. As can be appreciated, functions $nt!EtwpStartTrace$ and $nt!EtwpStartLogger$ were the callers. As the name suggests, these functions were creating and registering for the first time the loggers inside the ETW framework, confirming what was stated before. 
+
+The second one was {\bfseries dS @rdx} which basically prints out a string which is unicode-encoded. In this particular case, the string "UserNotPresentTraceSession" was printed. This name is not other than the logger name of one of the several ETW sessions that are initialized by default in Windows. 
+
+After this analysis, it was possible to conclude that by setting a breakpoint inside $EtwpLookupLoggerIdByName$ and comparing the logger name against the hardcoded one used for the DiagTrack session ({\bfseries Diagtrack-Listener}) it was possible to detect when the logger was being created. However, the logger id won't be filled when the breakpoint is hit, but when this function ends. 
+
+The next step was to find a place (function) that will be executed once the function \\ $EtwpLookupLoggerIdByName$ finishes (so that the logger id for the Diagtrack session is already set). Analyzing the call stack shown in figure \ref{fig:logger_id_kc_ds}, it can be appreciated that $nt!EtwpStartTrace$ would be a good candidate. Once the instruction that makes the call to $nt!EtwpStartLogger$ finishes, it means that the logger id was already created and related to the corresponding session. 
+
+
+\begin{figure}[H]
+  \includegraphics[width=11cm]{images/automation/loggerid/EtwpStartTrace.png}
+  \caption[]{Dissassembly of $nt!EtwpStartTrace$ }
+  \label{fig:disas_etwstartrace}
+\end{figure}
+
+Inspecting the assembly code of $nt!EtwpStartTrace$, it was possible to confirm that $nt!EtwpStartTrace+45$ would be a very good place where to set the second breakpoint as it the immediate instruction after the execution of the aforementioned functions.
+
+
+In summary, in order to finally get the logger id of the Diagtrack session the following steps should be accomplished: 
+
+\begin{enumerate}
+  \setlength\itemsep{0.05em}
+  \item Set a breakpoint at $EtwpLookupLoggerIdByName$. 
+  \item Until the logger name (which is held in $rdx$) is not "{\bfseries Diagtrack-Listener}", resume execution.  
+  \item Once it matches, create a one-time breakpoint at $nt!EtwpStartTrace+45$ and jump to it. 
+  \item Once this second breakpoint is hit, extract the information about the logger id from the \_ESERVERSILO\_GLOBALS structure.
+\end{enumerate}
+
+
+The final version of the script to accomplish this task was splitted in two parts. First part illustrates steps 1, 2 and 3. The second part implements the 4th step.
+
+
+\begin{figure}[H]
+\begin{lstlisting}
+$$ RCX --> Pointer to ETW_SILODRIVERSTATE
+$$ RDX --> Pointer to the logger name (unicode) (+0x8)
+
+$$ Save the pointer to the logger name
+r $t0 = poi(@rdx+0x8);
+
+$$ Compare the string using alias
+as /mu ${/v:LOGG_NAME} $t0;
+.block{r $t10 = 0x0;r $t10 = $spat(@"${LOGG_NAME}", "Diagtrack-Listener")} 
+ad LOGG_NAME
+
+$$ If it was  the Diagtrack-Listener
+.if($t10 == 1){
+    $$ Save the pointer to ETW_SILODRIVERSTATE
+    r $t1 = rcx;
+    
+    $$ The array is in offset 0x1b0 of ETW_SILODRIVERSTATE
+    r $t2 = $t1+0x1b0;
+
+    $$ Lets put a breakpoint just after the logger was created
+    bp /1 nt!EtwpStartTrace+0x45 "$$><\"path_to_second_part_script"
+};
+gc
+\end{lstlisting}
+\caption[]{First part of script to get the logger id . }
+\label{fig:loggerid_first_part}
+\end{figure}
+
+
+
+\begin{figure}[H]
+\begin{lstlisting}
+.for(r $t19 = 0;@$t19 < 0x40;r $t19 = @$t19+1){
+  $$ First, check if it is empty
+  .if ( poi(poi(@$t2)+@$t19*0x8)  == 1){
+      .continue
+  }
+  .else{
+      $$ Save the pointer to the WMI_LOGGER_CONTEXT in t4
+      r $t4 = poi(@$t2) + (@$t19*0x8);
+
+      $$ Save the STRING UNICODE object in t5
+      r $t5 = poi(@$t4)+0x98;
+
+      $$ Save the UNICODE buffer
+      r $t6 = poi(@$t5+0x8);
+      
+      $$ Create the alias of Unicode String
+      as /mu ${/v:LOGG_NAME_NEW} $t6;
+      .block{r $t10 = 0x0;r $t10 = $spat(@"${LOGG_NAME_NEW}", "Diagtrack-Listener")} 
+      ad LOGG_NAME_NEW
+
+      .if($t10 == 1){
+          .printf "Logger id of Diagtrack-Listener found!!: %N\n", @$t19
+          $$ <PLACE FOR FUTURE CODE >
+          .break
+      };
+  };
+};
+gc
+\end{lstlisting}
+\caption[]{Second part of script to get the logger id . }
+\label{fig:loggerid_second_part}
+\end{figure}
+
+
+
+
+
+
+
+
+
+
+
+ 
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -767,9 +1004,7 @@ As a summary, it is possible to ensure that line {\bfseries 21} represented the 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \newpage
-{\huge 1. We couldn't ensure that the data was being written was actually going to the DiagTrack session .}
 
-\section{Provider GUID vs Group Provider GUID}
 \section{Checking correctness of logged events}
 \section{Automatization of event logging}
 \section{Service isolation}

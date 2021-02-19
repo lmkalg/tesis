@@ -1,0 +1,22 @@
+sxd ld
+bp nt!pspinsertprocess
+g
+!gflag +ksl
+bc 0 
+sxe ld services.exe
+g
+!gflag -ksl
+bp /p @$proc nt!NtMapViewOfSection
+g
+bp0 /p @$proc ntdll!RtlUserThreadStart
+g
+ld services
+bp3 services!ScGetServiceNameTagMapping       "$$><\"C:\\Users\\ERNW\\Desktop\\partu\\development\\windbg2\\print_start_dump_services_db.txt\""
+$$bp4 services!ScGetServiceNameTagMapping+0x7d  "$$><\"C:\\Users\\ERNW\\Desktop\\partu\\development\\windbg2\\print_service_name_in_db.txt\""
+bp4 services!ScGetServiceNameTagMapping+0xa9  "$$><\"C:\\Users\\ERNW\\Desktop\\partu\\development\\windbg2\\print_service_name_in_db.txt\""
+$$bp5 services!ScGetServiceNameTagMapping+0x220 "$$><\"C:\\Users\\ERNW\\Desktop\\partu\\development\\windbg2\\print_end_dump_services_db.txt\""
+bp5 services!ScGetServiceNameTagMapping+0x3d7 "$$><\"C:\\Users\\ERNW\\Desktop\\partu\\development\\windbg2\\print_end_dump_services_db.txt\""
+$$bp6 services!ScGenerateServiceTag+0x3b "$$><\"C:\\Users\\ERNW\\Desktop\\partu\\development\\windbg2\\get_name_and_tag_from_ScGenerateServiceTag.txt\""
+bp6 services!CWin32ServiceRecord::GenerateServiceTag+0x16+0x3b "$$><\"C:\\Users\\ERNW\\Desktop\\partu\\development\\windbg2\\get_name_and_tag_from_ScGenerateServiceTag.txt\""
+
+gc
